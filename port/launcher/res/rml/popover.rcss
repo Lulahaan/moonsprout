@@ -1,0 +1,271 @@
+/*
+ * Popovers, dropdown lists and context menus (DESIGN.md 5.7, 5.12). ui/popover.cpp positions the
+ * popover next to its anchor and toggles `[open]`; the filter transition's `transitionend` hides a
+ * closing popover, so the filter transition must stay.
+ */
+body {
+    --button-background: rgba(var(--color-control-rgb), 35%);
+
+    width: 100%;
+    height: 100%;
+    z-index: 10;
+}
+
+popover {
+    position: absolute;
+    display: flex;
+    flex-flow: column;
+    padding: 6dp;
+    font-family: var(--font-family-body);
+    font-weight: 700;
+    font-size: var(--font-size-md);
+    color: var(--color-text);
+    border-radius: 18dp;
+    border-width: 2dp;
+    border-color: rgba(var(--color-border-rgb), 60%);
+    background-color: var(--surface-popover);
+    decorator: var(--surface-shine);
+    backdrop-filter: var(--blur-bar);
+    box-shadow: var(--shadow-popover);
+    filter: opacity(0);
+    transform: scale(0.96);
+    transform-origin: center top;
+    transition: filter 0.1s cubic-in, transform 0.1s cubic-in;
+    focus: auto;
+}
+
+popover[open] {
+    filter: opacity(1);
+    transform: scale(1);
+    transition: filter 0.14s cubic-out, transform 0.2s back-out;
+}
+
+/* ---- Context menu and dropdown list ---- */
+
+popover.context-menu {
+    min-width: 220dp;
+    max-width: 90%;
+    max-height: 90%;
+    overflow-y: auto;
+    gap: 2dp;
+    transform-origin: left top;
+}
+
+/* Opened upward (no room below the anchor): grow from the edge next to the anchor. */
+popover.context-menu.above {
+    transform-origin: left bottom;
+}
+
+/* Items: <button><icon/><span/></button>. The icon column holds the check of the selected item and
+ * stays empty otherwise, so every label lines up. */
+.context-menu button {
+    display: flex;
+    flex: 0 0 auto;
+    align-items: center;
+    gap: 8dp;
+    min-height: 40dp;
+    padding: 0 14dp 0 12dp;
+    border-radius: 10dp;
+    font-family: var(--font-family-body);
+    font-weight: 700;
+    font-size: var(--font-size-md);
+    line-height: 22dp;
+    text-align: left;
+    white-space: nowrap;
+    background-color: transparent;
+    box-shadow: none;
+    transition: background-color 0.12s cubic-out;
+}
+
+.context-menu button:not(:disabled):hover,
+.context-menu button:not(:disabled):focus-visible {
+    background-color: var(--button-background-hover);
+    box-shadow: inset 0 0 0 2dp rgba(140, 224, 74, 90%);
+}
+
+/* The pointer has not moved since the list opened: only the focused item is marked (popover.cpp). */
+popover.pointer-idle button:not(:disabled):not(:focus-visible):hover {
+    background-color: transparent;
+    box-shadow: none;
+}
+
+.context-menu button:not(:disabled):active {
+    background-color: var(--button-background-active);
+    transform: none;
+}
+
+.context-menu button:selected {
+    color: var(--color-accent);
+    background-color: transparent;
+}
+
+.context-menu button:selected:hover,
+.context-menu button:selected:focus-visible {
+    background-color: var(--button-background-hover);
+}
+
+.context-menu button.danger {
+    color: var(--color-error-text);
+}
+
+.context-menu button:disabled {
+    color: var(--text-disabled);
+    background-color: transparent;
+    box-shadow: none;
+    opacity: 1;
+    cursor: unavailable;
+}
+
+.context-menu icon {
+    display: block;
+    flex: 0 0 18dp;
+    width: 18dp;
+    height: 18dp;
+    font-size: 18dp;
+    line-height: 1;
+}
+
+.context-menu button:selected icon {
+    color: var(--color-accent);
+}
+
+menu-separator {
+    display: block;
+    flex: 0 0 1dp;
+    height: 1dp;
+    margin: 4dp 10dp;
+    background-color: rgba(var(--color-border-rgb), 22%);
+}
+
+/* ---- Colour picker (kept for later features; layout unchanged, softer shapes) ---- */
+
+popover.color-picker {
+    width: 280dp;
+    padding: 18dp;
+    gap: 10dp;
+}
+
+color-sv {
+    display: block;
+    position: relative;
+    width: 240dp;
+    height: 150dp;
+    border-radius: 10dp;
+    box-shadow: 0 0 0 1dp rgba(111, 182, 222, 50%);
+    drag: drag;
+    focus: auto;
+}
+
+color-hue,
+color-alpha {
+    display: block;
+    position: relative;
+    width: 240dp;
+    height: 14dp;
+    border-radius: 7dp;
+    box-shadow: 0 0 0 1dp rgba(111, 182, 222, 50%);
+    drag: drag;
+    focus: auto;
+}
+
+color-sv:focus-visible,
+color-hue:focus-visible,
+color-alpha:focus-visible {
+    box-shadow: var(--shadow-focus);
+}
+
+color-sv.adjusting,
+color-hue.adjusting,
+color-alpha.adjusting {
+    box-shadow: 0 0 0 3dp rgb(255, 255, 255);
+}
+
+color-hue {
+    decorator: linear-gradient(90deg, #ff0000, #ffff00, #00ff00, #00ffff, #0000ff, #ff00ff, #ff0000);
+}
+
+color-cursor {
+    display: block;
+    position: absolute;
+    width: 16dp;
+    height: 16dp;
+    border-radius: 8dp;
+    border-width: 2dp;
+    border-color: var(--color-white);
+    box-shadow: 0 0 0 2dp rgba(5, 11, 26, 85%), 0 0 4dp 1dp rgba(5, 11, 26, 70%);
+    pointer-events: none;
+}
+
+color-heading {
+    display: block;
+    margin-top: 2dp;
+    font-family: var(--font-family-heading);
+    font-weight: 600;
+    font-size: var(--font-size-xs);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-tertiary);
+}
+
+color-presets,
+color-history {
+    display: flex;
+    flex-flow: row wrap;
+    gap: 6dp;
+}
+
+button.color-swatch-button {
+    width: 26dp;
+    height: 26dp;
+    min-height: 0;
+    padding: 0;
+    border-radius: 10dp;
+}
+
+button.color-swatch-button color-swatch {
+    width: 26dp;
+    height: 26dp;
+    border-radius: 10dp;
+}
+
+color-footer {
+    display: flex;
+    align-items: center;
+    gap: 6dp;
+    padding-top: 2dp;
+}
+
+popover.color-picker button {
+    min-height: 32dp;
+    padding: 6dp 14dp;
+    font-size: var(--font-size-sm);
+    line-height: 20dp;
+}
+
+color-value {
+    display: block;
+    flex: 1 1 auto;
+    text-align: right;
+    font-family: var(--font-family-monospace);
+    font-size: var(--font-size-xs);
+    color: var(--color-white);
+    cursor: pointer;
+    focus: auto;
+}
+
+color-value:hover,
+color-value:focus-visible {
+    color: var(--color-accent);
+}
+
+/* ---- Accessibility ---- */
+
+body.reduce-motion.reduce-motion.reduce-motion.reduce-motion popover {
+    transform: none;
+}
+
+body.high-contrast.high-contrast.high-contrast.high-contrast popover {
+    border-color: var(--color-text);
+    decorator: none;
+    backdrop-filter: none;
+}

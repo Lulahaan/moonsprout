@@ -1,0 +1,37 @@
+# The public functions of p2libm, one per line: each is exported as p2m_<name>.
+# CMakeLists.txt reads this list for the symbol routing of the game library
+# (cmake/p2_new_syms.txt.in) and for -fno-builtin-<name>.
+sinf
+cosf
+tanf
+asinf
+acosf
+atanf
+atan2f
+expf
+logf
+log10f
+powf
+fmodf
+floorf
+ceilf
+lrintf
+sqrtf
+sin
+cos
+tan
+asin
+acos
+atan
+atan2
+exp
+log
+log10
+pow
+fmod
+floor
+ceil
+ldexp
+frexp
+modf
+sqrt

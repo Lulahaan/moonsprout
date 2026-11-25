@@ -1,0 +1,86 @@
+diff --git a/include/aurora/aurora.h b/include/aurora/aurora.h
+index b2153a6..3ea46e0 100644
+--- a/include/aurora/aurora.h
++++ b/include/aurora/aurora.h
+@@ -149,6 +149,13 @@ bool aurora_preserve_frame();
+ void aurora_set_log_level(AuroraLogLevel level);
+ void aurora_set_pause_on_focus_lost(bool value);
+ void aurora_set_background_input(bool value);
++/**
++ * mppm: when true, a GX or clear draw whose pipeline is not built yet waits for it (the frame
++ * stalls) instead of being skipped for that frame. Skipped draws show as half-built pictures
++ * (missing geometry, untextured quads) while a cold pipeline cache fills; prewarmed and cached
++ * pipelines never wait. Default false (Aurora's asynchronous behaviour).
++ */
++void aurora_set_blocking_pipelines(bool value);
+ void aurora_set_resampler(AuroraSampler sampler);
+ /** Sets the clock timescale. Default 1.0f. 0.0f is paused. Range 0.0f-16.0f. */
+ void aurora_set_timescale(float scale);
+diff --git a/lib/aurora.cpp b/lib/aurora.cpp
+index 57b25f1..9d674a4 100644
+--- a/lib/aurora.cpp
++++ b/lib/aurora.cpp
+@@ -3,6 +3,7 @@
+ #include <aurora/time.hpp>
+ 
+ #ifdef AURORA_ENABLE_GX
++#include "gfx/pipeline_cache.hpp"
+ #include "gfx/resources.hpp"
+ #include "gfx/frame.hpp"
+ #include "gfx/recording.hpp"
+@@ -500,6 +501,13 @@ const AuroraBackend* aurora_get_available_backends(size_t* count) {
+ }
+ void aurora_set_log_level(AuroraLogLevel level) { aurora::g_config.logLevel = level; }
+ void aurora_set_pause_on_focus_lost(bool value) { aurora::g_config.pauseOnFocusLost = value; }
++void aurora_set_blocking_pipelines(bool value) {
++#ifdef AURORA_ENABLE_GX
++  aurora::gfx::set_blocking_draw_pipelines(value);
++#else
++  (void)value;
++#endif
++}
+ void aurora_set_background_input(bool value) {
+   aurora::g_config.allowJoystickBackgroundEvents = value;
+   aurora::window::set_background_input(value);
+diff --git a/lib/gfx/pipeline_cache.cpp b/lib/gfx/pipeline_cache.cpp
+index 4dc6337..cf2dd27 100644
+--- a/lib/gfx/pipeline_cache.cpp
++++ b/lib/gfx/pipeline_cache.cpp
+@@ -1087,14 +1087,23 @@ static void stop_pipeline_cache_writer() {
+   g_pipelineCacheWriteQueue.clear();
+ }
+ 
++// mppm: draws wait for their pipeline instead of being skipped (aurora_set_blocking_pipelines).
++static std::atomic_bool g_blockingDrawPipelines{false};
++
++void set_blocking_draw_pipelines(bool value) noexcept { g_blockingDrawPipelines.store(value, std::memory_order_relaxed); }
++
++static PipelinePriority draw_pipeline_priority() noexcept {
++  return g_blockingDrawPipelines.load(std::memory_order_relaxed) ? PipelinePriority::Blocking : PipelinePriority::Normal;
++}
++
+ PipelineRef find_pipeline(const clear::PipelineConfig& config, const RenderTargetLayout& layout) {
+   remember_pipeline_config(ShaderType::Clear, config, current_frame(), true);
+-  return resolve_pipeline(ShaderType::Clear, config, layout, PipelinePriority::Normal);
++  return resolve_pipeline(ShaderType::Clear, config, layout, draw_pipeline_priority());
+ }
+ 
+ PipelineRef find_pipeline(const gx::PipelineConfig& config, const RenderTargetLayout& layout) {
+   remember_pipeline_config(ShaderType::GX, config, current_frame(), true);
+-  return resolve_pipeline(ShaderType::GX, config, layout, PipelinePriority::Normal);
++  return resolve_pipeline(ShaderType::GX, config, layout, draw_pipeline_priority());
+ }
+ 
+ #ifdef AURORA_ENABLE_RMLUI
+diff --git a/lib/gfx/pipeline_cache.hpp b/lib/gfx/pipeline_cache.hpp
+index 0801a22..e0ac683 100644
+--- a/lib/gfx/pipeline_cache.hpp
++++ b/lib/gfx/pipeline_cache.hpp
+@@ -38,6 +38,7 @@ void end_pipeline_frame();
+ void rebuild_pipeline_cache();
+ 
+ PipelineRef find_pipeline(const gx::PipelineConfig& config, const RenderTargetLayout& layout);
++void set_blocking_draw_pipelines(bool value) noexcept;
+ PipelineRef find_pipeline(const clear::PipelineConfig& config, const RenderTargetLayout& layout);
+ PipelineRef find_pipeline(const rmlui::PipelineConfig& config);
+ 

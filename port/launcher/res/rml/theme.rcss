@@ -1,0 +1,180 @@
+/*
+ * Moonsprout design tokens (docs/launcher/DESIGN.md 3.1).
+ *
+ * The variable names follow Dusklight's theme so every shared sheet keeps resolving; names that
+ * Dusklight does not have are marked "new". Colours with an `-rgb` twin exist so sheets can mix in
+ * their own alpha: `rgba(var(--color-text-rgb), 72%)`. `var()` is a textual substitution in RmlUi,
+ * so a token may hold a whole value (a gradient, a shadow list, a filter).
+ */
+body {
+    /* ---- type ---- */
+    --font-family-body: Nunito;
+    --font-family-heading: Fredoka;
+    --font-family-display: Gluten;
+    --font-family-monospace: Noto Mono;
+    --font-family-icons: Material Symbols Rounded;
+
+    --font-size-3xs: 12dp;           /* nothing renders below 12dp */
+    --font-size-2xs: 13dp;
+    --font-size-xs: 14dp;
+    --font-size-sm: 15dp;
+    --font-size-base: 16dp;
+    --font-size-md: 17dp;
+    --font-size-lg: 18dp;
+    --font-size-xl: 19dp;
+    --font-size-2xl: 20dp;
+    --font-size-3xl: 22dp;
+    --font-size-4xl: 24dp;
+    --font-size-5xl: 28dp;
+    --font-size-6xl: 34dp;
+    --font-size-hero: 72dp;          /* new */
+
+    --font-weight-body: 600;         /* new: Nunito SemiBold is the body weight */
+    --font-weight-value: 700;        /* new: setting values, list items */
+    --font-weight-strong: 800;       /* new */
+    --font-weight-heading: 600;      /* new: Fredoka SemiBold */
+    --font-weight-label: 500;        /* new: Fredoka Medium */
+
+    /* ---- text alphas (new): high contrast raises them, see global.rcss ---- */
+    --text-secondary: rgba(238, 247, 255, 72%);
+    --text-value: rgba(238, 247, 255, 85%);
+    --text-tertiary: rgba(238, 247, 255, 55%);
+    --text-disabled: rgba(238, 247, 255, 38%);
+
+    /* ---- spacing ---- */
+    --space-2xs: 2dp;
+    --space-xs: 4dp;
+    --space-sm: 8dp;
+    --space-md: 12dp;
+    --space-lg: 16dp;
+    --space-xl: 24dp;
+    --space-2xl: 32dp;
+    --space-3xl: 48dp;               /* new */
+    --space-4xl: 64dp;               /* new */
+    --space-edge: 96dp;              /* new: launcher margin at 1080p */
+
+    /* ---- radii ---- */
+    --radius-small: 8dp;
+    --radius-control: 12dp;
+    --radius-panel: 18dp;
+    --radius-window: 28dp;
+    --radius-row: 16dp;              /* new: settings rows */
+    --radius-pill: 999dp;            /* new */
+
+    --toolbar-height: 64dp;
+    --toolbar-hidden-offset: -88dp;  /* the bar floats: 64 + 16 margin + 8 shadow */
+
+    /* ---- colour: core ---- */
+    --color-text-rgb: 238, 247, 255;          /* #EEF7FF glass white */
+    --color-text: rgb(var(--color-text-rgb));
+    --color-accent-rgb: 140, 224, 74;         /* #8CE04A sprout green */
+    --color-accent: rgb(var(--color-accent-rgb));
+    --color-border-rgb: 111, 182, 222;        /* #6FB6DE glass rim cyan */
+    --color-border: rgb(var(--color-border-rgb));
+    --color-surface-rgb: 11, 23, 48;          /* #0B1730 deep-space navy */
+    --color-interactive-rgb: 191, 230, 255;   /* #BFE6FF glass highlight */
+    --color-control-rgb: 6, 14, 34;           /* #060E22 */
+    --color-neutral-rgb: 191, 230, 255;       /* tab bar wash: same as interactive */
+    --color-neutral: rgb(var(--color-neutral-rgb));
+    --color-white-rgb: 255, 255, 255;
+    --color-white: rgb(var(--color-white-rgb));
+    --color-black-rgb: 5, 11, 26;             /* #050B1A: "black" is space navy */
+    --color-black: rgb(var(--color-black-rgb));
+
+    /* ---- colour: brand and world (new) ---- */
+    --color-brand-rgb: 240, 73, 110;          /* #F0496E ship pink-red: glows, large type */
+    --color-brand: rgb(var(--color-brand-rgb));
+    --color-brand-fill-rgb: 200, 40, 79;      /* #C8284F: fill under white text */
+    --color-brand-fill: rgb(var(--color-brand-fill-rgb));
+    --color-brand-fill-hi: #E63C66;
+    --color-sun-rgb: 255, 210, 63;            /* #FFD23F */
+    --color-sun: rgb(var(--color-sun-rgb));
+    --color-raised-rgb: 19, 38, 74;           /* #13264A: popovers, rows on hover */
+    --color-ink: #0A1A0C;                     /* text on green or yellow fills */
+    --color-muted: #9FB4CC;
+
+    --color-pik-red: #E8392B;
+    --color-pik-yellow: #FFD23F;
+    --color-pik-blue: #2F7BEA;
+    --color-pik-blue-hi: #6FA8FF;             /* blue as text */
+    --color-pik-purple: #8A4FC9;
+    --color-pik-purple-hi: #B78BEA;           /* purple as text */
+    --color-pik-white: #F3EEF7;
+    --color-leaf: #5FBF3A;
+    --color-leaf-deep: #2E7D32;
+    --color-leaf-hi: #B9F27C;
+    --color-petal: #F7B6D2;
+    --color-onion-red: #B8283A;
+    --color-band-blue: #0A1FB8;
+    --color-space-900: #050B1A;
+    --color-space-800: #0B1730;
+    --color-space-700: #1B2E6B;
+    --color-sunset-1: #FFC56B;
+    --color-sunset-2: #FF8A3D;
+    --color-sunset-3: #F25C3B;
+    --color-dusk: #6B3A7A;
+
+    /* ---- colour: status ---- */
+    --color-success-rgb: 111, 214, 73;        /* #6FD649 */
+    --color-success: rgb(var(--color-success-rgb));
+    --color-info-rgb: 90, 184, 255;           /* #5AB8FF */
+    --color-info: rgb(var(--color-info-rgb));
+    --color-warning-rgb: 255, 177, 59;        /* #FFB13B */
+    --color-warning: rgb(var(--color-warning-rgb));
+    --color-error-rgb: 255, 92, 108;          /* #FF5C6C: icons, rims */
+    --color-error: rgb(var(--color-error-rgb));
+    --color-error-text: #FF8A94;              /* new: error as small text */
+
+    --color-danger-border: #9E1F3D;
+    --color-danger-heading: #FF8A94;
+
+    /* ---- buttons ---- */
+    --button-color: var(--color-text);
+    --button-background: rgba(var(--color-control-rgb), 45%);
+    --button-background-hover: rgba(var(--color-interactive-rgb), 16%);
+    --button-background-selected: rgba(var(--color-interactive-rgb), 28%);
+    --button-background-active: rgba(var(--color-accent-rgb), 30%);
+
+    --toast-border-color: rgba(var(--color-border-rgb), 50%);
+    --toast-heading-color: var(--color-text);
+
+    /* ---- surfaces (new) ---- */
+    --surface-window: rgba(var(--color-surface-rgb), 86%);
+    --surface-popover: rgba(var(--color-raised-rgb), 96%);
+    --surface-bar: rgba(var(--color-surface-rgb), 80%);
+    --surface-toast: rgba(var(--color-surface-rgb), 88%);
+    --surface-shine: linear-gradient(180deg, rgba(255, 255, 255, 14%) 0%, rgba(255, 255, 255, 3%) 38%, rgba(255, 255, 255, 0%) 60%);
+    --blur-panel: blur(14dp);
+    --blur-bar: blur(10dp);
+
+    /* ---- shadows and glows (new) ---- */
+    --rim: 2dp;
+    --rim-color: rgba(var(--color-border-rgb), 70%);
+    --shadow-window: 0 18dp 48dp 0 rgba(5, 11, 26, 60%), 0 0 28dp 2dp rgba(90, 184, 255, 18%), inset 0 1dp 0 0 rgba(255, 255, 255, 30%), inset 0 -10dp 24dp 0 rgba(5, 11, 26, 35%);
+    --shadow-popover: 0 8dp 28dp 2dp rgba(5, 11, 26, 60%), inset 0 1dp 0 0 rgba(255, 255, 255, 24%);
+    --shadow-control: 0 0 0 1dp rgba(111, 182, 222, 28%), inset 0 1dp 0 0 rgba(255, 255, 255, 10%);
+    --shadow-row: 0 0 0 1dp rgba(111, 182, 222, 16%);
+    --shadow-hover: 0 0 0 2dp rgb(140, 224, 74);
+    --shadow-focus: 0 0 0 2dp rgb(140, 224, 74), 0 0 0 4dp rgba(5, 11, 26, 85%), 0 0 16dp 3dp rgba(140, 224, 74, 45%);
+    --shadow-orb: 0 6dp 18dp 0 rgba(5, 11, 26, 60%), inset 5dp 7dp 12dp 0 rgba(255, 255, 255, 18%), inset -6dp -10dp 18dp 0 rgba(5, 11, 26, 50%);
+    --glow-text: glow(0dp 4dp 0dp 2dp rgba(5, 11, 26, 85%));
+    --glow-text-cyan: glow(0dp 8dp 0dp 0dp rgba(90, 184, 255, 55%));
+
+    /* ---- motion (new): DESIGN.md 4. Transitions spell tweens out; these are for C++ and docs ---- */
+    --dur-press: 0.09s;
+    --dur-fast: 0.12s;
+    --dur-base: 0.2s;
+    --dur-panel: 0.26s;
+    --dur-sprout: 0.32s;
+    --dur-bloom: 0.5s;
+    --dur-scene: 0.8s;
+    --stagger: 0.07s;
+    --ease-standard: cubic-out;
+    --ease-exit: cubic-in;
+    --ease-move: cubic-in-out;
+    --ease-pop: back-out;
+    --ease-pluck: back-in;
+    --ease-bloom: elastic-out;
+    --ease-drop: bounce-out;
+    --ease-drift: sine-in-out;
+}

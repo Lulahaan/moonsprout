@@ -1,0 +1,1832 @@
+/*
+ * The start menu (docs/launcher/DESIGN.md 5.3, 6, 7). Linked after theme.rcss; global.rcss is
+ * merged in by the document loader.
+ *
+ * Layers, back to front: prelaunch-background (pre-disc backdrop), the scrims and content#root
+ * (menu, status rows), launch-bloom, the launch letterbox (over the bloom, so the bars stay
+ * clean) and launch-flash.
+ *
+ * State classes on body, all set by port/launcher/prelaunch.cpp:
+ *   animate-in        entrance running (6.8); intro-skip snaps it to its end
+ *   landing / landed  the ship flies to the horizon after a disc was picked (6.9)
+ *   scene-ready       the live scene is on screen: the backdrop fades (removed again while a
+ *                     setting is applied behind it); scene-swap once that has happened
+ *   pointer-input     last input was the mouse: button prompts hide
+ *   covered           a window (Settings) is open over the menu: the menu steps back, the
+ *                     backdrop or scene stays behind the glass
+ *   picking           the disc file dialog is open: the menu waits
+ *   drop-hover        a file is dragged over the window: the drop target shows
+ *   launching         take-off (7.2), with launch-full (launch-short under Reduce Motion) or
+ *                     launch-off, and launch-navy; then launch-ignite, launch-liftoff,
+ *                     launch-bloom-off (the ship left the frame), launch-flash (+ launch-skip),
+ *                     launch-wait, launch-handoff, launch-reveal; launch-backdrop when no live
+ *                     scene is behind (the backdrop ship takes off instead); skip-hint-on and
+ *                     skip-hint-dim for the "Press any button to skip" pill
+ *
+ * Colours and motion values are DESIGN.md 3.1 and 4.1. The ones only this screen uses are kept as
+ * local --pl-* tokens so the sheet does not depend on the theme's newer names.
+ */
+
+body {
+    --pl-navy: #050B1A;
+    --pl-navy-rgb: 5, 11, 26;
+    --pl-text-rgb: 238, 247, 255;
+    --pl-muted: #9FB4CC;
+    --pl-ink: #0A1A0C;
+    --pl-leaf-hi: #B9F27C;
+    --pl-leaf-deep: #2E7D32;
+    --pl-sun: #FFD23F;
+    --pl-flash: #FFF6E0;
+    --pl-edge: 96dp;
+    --pl-glow-text: glow(0dp 4dp 0dp 2dp rgba(5, 11, 26, 85%));
+
+    width: 100%;
+    height: 100%;
+    font-family: var(--font-family-body);
+    font-weight: 600;
+    font-size: 16dp;
+    color: rgb(var(--pl-text-rgb));
+    z-index: -1;
+}
+
+/* Decoration layers never take the pointer: launch-bloom, the letterbox and launch-flash sit above
+   content (opacity 0 or off screen when idle) and would otherwise swallow every hover and click on
+   the menu. Clicks during the take-off still reach the body, which skips. */
+prelaunch-background,
+intro-veil,
+prelaunch-vignette,
+scrims,
+launch-bloom,
+letterbox,
+skip-hint,
+launch-flash,
+drop-target {
+    pointer-events: none;
+}
+
+/* ---------------------------------------------------------------- pre-disc backdrop (6.4) */
+
+prelaunch-background {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    opacity: 1;
+}
+
+body.scene-ready prelaunch-background {
+    opacity: 0;
+    transition: opacity 1s sine-in-out;
+}
+
+/* The backdrop comes back over the scene (scene-ready removed while a setting is applied behind
+   it, live_options 3.4) in 0.25 s; after that, the scene's return fades it out in 0.4 s. */
+prelaunch-background {
+    transition: opacity 0.25s sine-in-out;
+}
+
+body.scene-ready.scene-swap prelaunch-background,
+body.scene-ready.scene-swap bd-stars,
+body.scene-ready.scene-swap bd-stars.twinkle,
+body.scene-ready.scene-swap bd-sun {
+    transition: opacity 0.4s sine-in-out;
+}
+
+/* RmlUi's opacity is inherited, not multiplied: the layers that set their own (stars, sun) fade with
+   it here, and lose the animations that would keep driving it. */
+body.scene-ready bd-stars,
+body.scene-ready bd-stars.twinkle,
+body.scene-ready bd-sun {
+    opacity: 0;
+    transition: opacity 1s sine-in-out;
+}
+
+body.scene-ready bd-stars.twinkle,
+body.scene-ready bd-sun {
+    animation: none;
+}
+
+bd-sky {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    decorator: linear-gradient(180deg, #050B1A 0%, #0B1730 42%, #1B2E6B 74%, #3A2A6E 90%, #6B3A7A 100%);
+}
+
+/* The tile is 512dp; the layer is 512dp wider than the frame so the drift loops seamlessly. */
+bd-stars {
+    position: absolute;
+    left: 0;
+    top: 0;
+    right: -512dp;
+    bottom: 0;
+}
+
+bd-stars.far {
+    decorator: image(../img/stars-far.png repeat);
+    opacity: 0.7;
+    animation: 240s linear-in-out infinite star-drift;
+}
+
+bd-stars.near {
+    decorator: image(../img/stars-near.png repeat);
+    opacity: 0.9;
+    animation: 120s linear-in-out infinite star-drift;
+}
+
+/* The near tile again, offset by (137dp, 61dp), twinkling. */
+bd-stars.twinkle {
+    left: -375dp;
+    top: -451dp;
+    right: -137dp;
+    decorator: image(../img/stars-near.png repeat);
+    opacity: 0.35;
+    animation: 3.2s sine-in-out infinite alternate twinkle;
+}
+
+@keyframes star-drift {
+    from { transform: translateX(0dp); }
+    to { transform: translateX(-512dp); }
+}
+
+@keyframes twinkle {
+    from { opacity: 0.35; }
+    to { opacity: 1; }
+}
+
+/* Centred in its box (the lower half is below the horizon) and sized to the box's sides, so the glow
+   fades to nothing before any edge of the box: no straight edge in the sky. */
+bd-sun {
+    position: absolute;
+    left: 70%;
+    top: 78%;
+    width: 1272dp;
+    height: 1470dp;
+    margin-left: -636dp;
+    margin-top: -475dp;
+    decorator: radial-gradient(ellipse closest-side at 50% 50%, rgba(255, 197, 107, 70%) 0%, rgba(255, 138, 61, 40%) 37.5%, rgba(242, 92, 59, 16%) 68.75%, rgba(107, 58, 122, 5%) 88%, rgba(107, 58, 122, 0%) 100%);
+    opacity: 0.85;
+    animation: 6s sine-in-out infinite alternate sun-breathe;
+}
+
+@keyframes sun-breathe {
+    from { opacity: 0.85; }
+    to { opacity: 1; }
+}
+
+/* Only the top arc of the planet is on screen: a curved green horizon lit from behind. RmlUi has
+   no percentage border-radius, so the disc is the gradient itself (transparent past its edge),
+   shaded from the rim inward. */
+bd-planet {
+    position: absolute;
+    left: -70vw;
+    top: 72vh;
+    width: 240vw;
+    height: 240vw;
+    decorator: radial-gradient(circle closest-side, #071A30 0%, #071A30 84%, #0B2F4A 90%, #14605A 95%, #2E9A5B 98.2%, #6CCB5E 99.6%, #7BD66A 99.9%, rgba(123, 214, 106, 0%) 100%);
+}
+
+/* The atmosphere: a rim light just inside the planet's edge and a cyan haze outside it. Drawn as a
+   gradient on a slightly larger concentric circle instead of a box-shadow, which would need an
+   off-screen texture several times the window's size. The planet's radius is 98.77% of this one. */
+bd-atmosphere {
+    position: absolute;
+    left: -71.5vw;
+    top: 72vh;
+    margin-top: -1.5vw;
+    width: 243vw;
+    height: 243vw;
+    decorator: radial-gradient(circle closest-side, rgba(127, 216, 255, 0%) 0%, rgba(127, 216, 255, 0%) 97.6%, rgba(185, 242, 124, 30%) 98.5%, rgba(127, 216, 255, 50%) 98.8%, rgba(127, 216, 255, 18%) 99.3%, rgba(127, 216, 255, 0%) 100%);
+}
+
+/* The ship: positioned by bd-ship (centre at 72%, 34%), bobbing in bd-bob, tilting in bd-tilt. */
+bd-ship {
+    position: absolute;
+    left: 72%;
+    top: 34%;
+    width: 220dp;
+    height: 220dp;
+    margin-left: -110dp;
+    margin-top: -110dp;
+}
+
+bd-bob {
+    display: block;
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    animation: 5s sine-in-out infinite alternate bob;
+}
+
+bd-tilt {
+    display: block;
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    transform: rotate(-18deg);
+    animation: 7s sine-in-out infinite alternate ship-tilt;
+}
+
+bd-tilt img {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 220dp;
+    height: 220dp;
+}
+
+@keyframes bob {
+    from { transform: translateY(-5dp); }
+    to { transform: translateY(5dp); }
+}
+
+@keyframes ship-tilt {
+    from { transform: rotate(-20deg); }
+    to { transform: rotate(-16deg); }
+}
+
+/* Under the nozzle, which sits at the bottom centre of ship.png (y = 440 of 512). */
+bd-flame {
+    position: absolute;
+    left: 92dp;
+    top: 184dp;
+    width: 36dp;
+    height: 70dp;
+    transform-origin: center top;
+    decorator: radial-gradient(ellipse at 50% 0%, #FFF3B0 0%, #FFB13B 35%, rgba(242, 92, 59, 0%) 75%);
+    animation: 0.18s linear-in-out infinite alternate flame;
+}
+
+@keyframes flame {
+    from { transform: scaleY(0.8); }
+    to { transform: scaleY(1.15); }
+}
+
+/* Three little lights trailing the ship along its tail direction. */
+/* Each light is a soft-edged gradient disc with its glow in the same gradient: a 10dp rounded box
+   is drawn without antialiasing. The box is 30dp, centred where the 10dp dot used to be. */
+bd-spark {
+    position: absolute;
+    left: 95dp;
+    width: 30dp;
+    height: 30dp;
+    animation: 5s sine-in-out infinite alternate bob;
+}
+
+bd-spark.r {
+    top: 240dp;
+    decorator: radial-gradient(circle closest-side, #FF8A7E 0%, #E8392B 26%, #E8392B 30%, rgba(232, 57, 43, 45%) 40%, rgba(232, 57, 43, 14%) 66%, rgba(232, 57, 43, 0%) 100%);
+    animation: 5s 0.4s sine-in-out infinite alternate bob;
+}
+
+bd-spark.y {
+    top: 272dp;
+    decorator: radial-gradient(circle closest-side, #FFF0A8 0%, #FFD23F 26%, #FFD23F 30%, rgba(255, 210, 63, 45%) 40%, rgba(255, 210, 63, 14%) 66%, rgba(255, 210, 63, 0%) 100%);
+    animation: 5s 0.8s sine-in-out infinite alternate bob;
+}
+
+bd-spark.b {
+    top: 304dp;
+    decorator: radial-gradient(circle closest-side, #8CB8FF 0%, #2F7BEA 26%, #2F7BEA 30%, rgba(47, 123, 234, 45%) 40%, rgba(47, 123, 234, 14%) 66%, rgba(47, 123, 234, 0%) 100%);
+    animation: 5s 1.2s sine-in-out infinite alternate bob;
+}
+
+/* Landing (6.9): the ship flies to the horizon, then a warm glow blooms where it touched down. */
+body.landing bd-ship {
+    left: 58%;
+    top: 66%;
+    transform: scale(0.15) rotate(-60deg);
+    opacity: 0;
+    transition: left 0.9s cubic-in, top 0.9s cubic-in, transform 0.9s cubic-in, opacity 0.2s 0.75s linear-in-out;
+}
+
+body.landing bd-flame {
+    transform: scaleY(1.6);
+    animation: none;
+}
+
+bd-glow {
+    position: absolute;
+    left: 58%;
+    top: 66%;
+    width: 120dp;
+    height: 120dp;
+    margin-left: -60dp;
+    margin-top: -60dp;
+    decorator: radial-gradient(circle closest-side, rgba(255, 243, 176, 100%) 0%, rgba(255, 177, 59, 55%) 40%, rgba(242, 92, 59, 0%) 100%);
+    opacity: 0;
+}
+
+body.landing bd-glow {
+    animation: 0.4s 0.9s linear-in-out 1 landing-glow;
+}
+
+@keyframes landing-glow {
+    0% { opacity: 0; }
+    50% { opacity: 0.8; }
+    100% { opacity: 0; }
+}
+
+body.landed bd-ship,
+body.landed bd-glow {
+    display: none;
+}
+
+/* The entrance (6.8): the first frame is presented on its own, before a slow first event pump, so it
+   is the same navy as the top of the sky; the backdrop then fades up from it in 0.6 s with the
+   wordmark, instead of popping in at full brightness and standing still through that pump. */
+intro-veil {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    background-color: #050B1A;
+    opacity: 1;
+}
+
+body.animate-in intro-veil {
+    opacity: 0;
+    transition: opacity 0.6s cubic-out;
+}
+
+/* ---------------------------------------------------------------- scrims (6.3) */
+
+/* Inside content, so it follows the centred stage on 21:9 and wider; scrim-extend darkens the
+   frame to the left of the stage at the scrim's full strength. */
+prelaunch-gradient {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 62%;
+    height: 100%;
+    decorator: linear-gradient(90deg, rgba(5, 11, 26, 82%) 0%, rgba(5, 11, 26, 74%) 28%, rgba(5, 11, 26, 46%) 52%, rgba(5, 11, 26, 16%) 78%, rgba(5, 11, 26, 0%) 100%);
+}
+
+scrim-extend {
+    position: absolute;
+    right: 100%;
+    top: 0;
+    width: 100vw;
+    height: 100%;
+    background-color: rgba(5, 11, 26, 82%);
+}
+
+/* Behind the version label and the update notice: the scene's brightest ground is often in that
+   corner. */
+corner-scrim {
+    position: absolute;
+    right: 0;
+    bottom: 0;
+    width: 900dp;
+    height: 440dp;
+    decorator: radial-gradient(ellipse closest-side at 100% 100%, rgba(5, 11, 26, 78%) 0%, rgba(5, 11, 26, 62%) 40%, rgba(5, 11, 26, 26%) 72%, rgba(5, 11, 26, 0%) 100%);
+}
+
+prelaunch-vignette {
+    position: absolute;
+    left: 0;
+    bottom: 0;
+    width: 100%;
+    height: 26%;
+    decorator: linear-gradient(180deg, rgba(5, 11, 26, 0%) 0%, rgba(5, 11, 26, 58%) 100%);
+}
+
+scrims {
+    display: block;
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    opacity: 0;
+}
+
+body.animate-in scrims,
+body.animate-in prelaunch-vignette {
+    opacity: 1;
+    transition: opacity 0.8s sine-in-out;
+}
+
+prelaunch-vignette {
+    opacity: 0;
+}
+
+/* ---------------------------------------------------------------- content and layout (6.5) */
+
+content {
+    display: block;
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+}
+
+menu {
+    position: absolute;
+    left: var(--pl-edge);
+    top: 50%;
+    transform: translateY(-54%);
+    width: 420dp;
+    display: flex;
+    flex-direction: column;
+    gap: 36dp;
+}
+
+hero {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6dp;
+}
+
+eyebrow {
+    display: block;
+    font-family: var(--font-family-heading);
+    font-weight: 500;
+    font-size: 20dp;
+    letter-spacing: 0.02em;
+    color: rgba(var(--pl-text-rgb), 80%);
+    font-effect: var(--pl-glow-text);
+}
+
+/* The two wordmark PNGs register pixel for pixel (1680x420, shown at a quarter). */
+wordmark-box {
+    display: block;
+    position: relative;
+    width: 420dp;
+    height: 105dp;
+    margin-left: -12dp;
+}
+
+wordmark-box img {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+}
+
+/* The seedling grows from the top of the "t": its stem base is at about (87%, 45%). */
+wordmark-leaf {
+    display: block;
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    transform-origin: 87% 45%;
+    transform: scale(0);
+}
+
+wordmark-leaf img {
+    transform-origin: 87% 45%;
+    animation: 3.2s sine-in-out infinite alternate leaf-sway;
+}
+
+@keyframes leaf-sway {
+    from { transform: rotate(-4deg); }
+    to { transform: rotate(4deg); }
+}
+
+menu-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10dp;
+    align-items: flex-start;
+}
+
+/* ---------------------------------------------------------------- menu buttons (5.3) */
+
+#menu-list button {
+    display: block;
+    position: relative;
+    width: 360dp;
+    height: 56dp;
+    line-height: 56dp;
+    padding: 0 24dp;
+    /* Exactly half the height: a larger radius is clamped per corner, which leaves notches in the
+       focus ring at the rounded ends. */
+    border-radius: 28dp;
+    font-family: var(--font-family-heading);
+    font-weight: 600;
+    font-size: 28dp;
+    text-align: left;
+    white-space: nowrap;
+    color: rgb(var(--pl-text-rgb));
+    font-effect: var(--pl-glow-text);
+    cursor: pointer;
+    /* A fully transparent gradient at rest, so the hover fill fades instead of flashing. */
+    decorator: linear-gradient(180deg, rgba(255, 255, 255, 0%), rgba(255, 255, 255, 0%));
+}
+
+/* Hover transitions only once the entrance is over (4.1). */
+#menu-list button.anim-done {
+    transition: padding-left 0.2s cubic-out, transform 0.2s back-out;
+}
+
+/* The ring: a hairline of blur on each hard shadow softens its stair-steps. */
+#menu-list button.anim-done:focus-visible {
+    padding-left: 50dp;
+    decorator: linear-gradient(180deg, rgba(255, 255, 255, 26%), rgba(255, 255, 255, 10%));
+    box-shadow: 0 0 1.5dp 2dp #8CE04A, 0 0 1.5dp 4dp rgba(5, 11, 26, 80%), 0 0 16dp 3dp rgba(140, 224, 74, 45%);
+    backdrop-filter: blur(8dp);
+}
+
+#menu-list button.anim-done:active {
+    transform: scale(0.97);
+    decorator: linear-gradient(180deg, rgba(255, 255, 255, 34%), rgba(255, 255, 255, 14%));
+}
+
+#menu-list button:disabled {
+    opacity: 0.5;
+    cursor: default;
+}
+
+#menu-list button:disabled:hover {
+    padding-left: 24dp;
+    decorator: linear-gradient(180deg, rgba(255, 255, 255, 0%), rgba(255, 255, 255, 0%));
+    box-shadow: none;
+    backdrop-filter: none;
+}
+
+menu-label {
+    display: inline;
+}
+
+/* The cursor sprout: two leaves that grow at the left of the focused item. */
+cursor-sprout {
+    display: block;
+    position: absolute;
+    left: 16dp;
+    top: 50%;
+    margin-top: -11dp;
+    width: 22dp;
+    height: 22dp;
+    transform: scale(0);
+    transform-origin: center bottom;
+    transition: transform 0.32s back-out;
+}
+
+#menu-list button.anim-done:focus-visible cursor-sprout {
+    transform: scale(1);
+}
+
+#menu-list button:disabled cursor-sprout {
+    transform: scale(0);
+}
+
+cursor-sprout leaf {
+    display: block;
+    position: absolute;
+    bottom: 4dp;
+    width: 12dp;
+    height: 12dp;
+    decorator: linear-gradient(135deg, #B9F27C, #5FBF3A);
+}
+
+cursor-sprout leaf.l {
+    left: 0;
+    border-radius: 12dp 1dp 12dp 1dp;
+}
+
+cursor-sprout leaf.r {
+    right: 0;
+    border-radius: 1dp 12dp 1dp 12dp;
+}
+
+/* Play: the one primary action. */
+#menu-list button.play {
+    padding-right: 72dp;
+    height: 68dp;
+    line-height: 68dp;
+    border-radius: 34dp;
+    font-size: 34dp;
+    color: #FFFFFF;
+    font-effect: none;
+    decorator: linear-gradient(180deg, #E63C66 0%, #C8284F 100%);
+    box-shadow: 0 0 0 1dp rgba(255, 255, 255, 22%), 0 4dp 14dp 0 rgba(200, 40, 79, 45%);
+}
+
+/* "Choose Disc Image" is twice as long as "Play": a smaller face keeps it clear of the icon. */
+#menu-list button.play.long {
+    font-size: 28dp;
+}
+
+#menu-list button.play.anim-done:focus-visible {
+    decorator: linear-gradient(180deg, #F0496E 0%, #D43460 100%);
+    box-shadow: 0 0 1.5dp 2dp #8CE04A, 0 0 1.5dp 4dp rgba(5, 11, 26, 80%), 0 0 16dp 3dp rgba(140, 224, 74, 45%);
+    backdrop-filter: none;
+}
+
+#menu-list button.play.anim-done:active {
+    decorator: linear-gradient(180deg, #C8284F 0%, #B0213F 100%);
+}
+
+#menu-list button.play:disabled {
+    opacity: 0.8;
+}
+
+#menu-list button.play:disabled:hover {
+    padding-left: 24dp;
+    decorator: linear-gradient(180deg, #E63C66 0%, #C8284F 100%);
+    box-shadow: 0 0 0 1dp rgba(255, 255, 255, 22%), 0 4dp 14dp 0 rgba(200, 40, 79, 45%);
+}
+
+/* The slow halo behind Play while it (or nothing else) has focus. */
+play-halo {
+    display: block;
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    border-radius: 34dp;
+    box-shadow: 0 0 28dp 6dp rgba(240, 73, 110, 55%);
+    opacity: 0;
+    z-index: -1;
+}
+
+#menu-list button.play.anim-done.halo play-halo {
+    animation: 2.4s sine-in-out infinite alternate halo;
+}
+
+@keyframes halo {
+    from { opacity: 0.45; }
+    to { opacity: 1; }
+}
+
+menu-icon {
+    display: block;
+    position: absolute;
+    right: 22dp;
+    top: 0;
+    width: 32dp;
+    height: 100%;
+    font-family: var(--font-family-icons);
+    font-weight: normal;
+    font-size: 28dp;
+    font-effect: none;
+}
+
+menu-icon.rocket {
+    decorator: text("&#xeb9b;" center center);
+}
+
+menu-icon.album {
+    decorator: text("&#xe019;" center center);
+}
+
+/* "Landing...": three beads in place of the rocket. */
+menu-icon.loading {
+    font-family: var(--font-family-body);
+}
+
+menu-icon.loading beads {
+    display: flex;
+}
+
+/* ---------------------------------------------------------------- bead loader (5.15) */
+
+beads {
+    display: none;
+    flex-direction: row;
+    align-items: center;
+    gap: 5dp;
+    height: 100%;
+}
+
+bead {
+    display: block;
+    width: 8dp;
+    height: 8dp;
+    border-radius: 4dp;
+    background-color: rgba(238, 247, 255, 90%);
+    opacity: 0.3;
+    animation: 0.45s sine-in-out infinite alternate bead;
+}
+
+bead + bead {
+    animation: 0.45s 0.15s sine-in-out infinite alternate bead;
+}
+
+bead + bead + bead {
+    animation: 0.45s 0.3s sine-in-out infinite alternate bead;
+}
+
+@keyframes bead {
+    from { opacity: 0.3; }
+    to { opacity: 1; }
+}
+
+/* ---------------------------------------------------------------- disc status (6.5) */
+
+disc-info {
+    position: absolute;
+    left: var(--pl-edge);
+    bottom: 56dp;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6dp;
+}
+
+#disc-status {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 8dp;
+    height: 36dp;
+    padding: 0 14dp 0 6dp;
+    border-radius: 18dp;
+    background-color: rgba(11, 23, 48, 80%);
+    border: 1dp rgba(111, 182, 222, 35%);
+    font-family: var(--font-family-heading);
+    font-weight: 600;
+    font-size: 18dp;
+    color: rgba(var(--pl-text-rgb), 72%);
+}
+
+status-orb {
+    display: block;
+    width: 24dp;
+    height: 24dp;
+    border-radius: 12dp;
+    background-color: rgba(255, 255, 255, 10%);
+    box-shadow: inset 0 1dp 0 0 rgba(255, 255, 255, 20%);
+}
+
+status-orb icon {
+    display: block;
+    width: 24dp;
+    height: 24dp;
+    font-size: 17dp;
+    line-height: 24dp;
+}
+
+#disc-status[status=good] { color: #B9F27C; }
+#disc-status[status=good] status-orb { background-color: rgba(185, 242, 124, 18%); }
+#disc-status[status=good] icon { decorator: text("&#xe5ca;" center center); }
+
+#disc-status[status=none] icon { decorator: text("&#xe019;" center center); }
+
+#disc-status[status=mismatch] { color: #FFD6A7; }
+#disc-status[status=mismatch] status-orb { background-color: rgba(255, 214, 167, 18%); }
+#disc-status[status=mismatch] icon { decorator: text("&#xe002;" center center); }
+
+#disc-status[status=bad] { color: #FFC2C8; }
+#disc-status[status=bad] status-orb { background-color: rgba(255, 194, 200, 18%); }
+#disc-status[status=bad] icon { decorator: text("&#xe000;" center center); }
+
+#disc-status[status=pending] { color: #FFD23F; }
+#disc-status[status=pending] status-orb { background-color: rgba(255, 210, 63, 18%); }
+#disc-status[status=pending] icon { decorator: text("&#xe863;" center center); }
+
+/* The file dialog is open. */
+#disc-status[status=picking] { color: rgb(var(--pl-text-rgb)); }
+#disc-status[status=picking] icon { decorator: text("&#xe2c8;" center center); }
+
+/* The pill, the detail line and the hint share one left edge: the pill's. "Change" follows the
+   detail text (game id, or the file's name) on the same line. */
+disc-line {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 8dp;
+    padding-left: 2dp;
+    font-size: 15dp;
+    color: var(--pl-muted);
+    font-effect: var(--pl-glow-text);
+}
+
+disc-line.empty,
+disc-version.empty {
+    display: none;
+}
+
+/* A long file name ends in an ellipsis, so "Change" stays clear of the key prompt. */
+disc-version {
+    display: block;
+    flex: 0 1 auto;
+    min-width: 0;
+    max-width: 420dp;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* "Change": a text button. */
+#disc-change {
+    display: inline-block;
+    flex: 0 0 auto;
+    /* 8dp gap + 6dp padding: the same distance from the text as before, and the focus ring (4dp
+       outside the box) keeps 4dp clear of the detail text. */
+    padding: 2dp 8dp 2dp 6dp;
+    border-radius: 8dp;
+    font-family: var(--font-family-heading);
+    font-weight: 600;
+    font-size: 15dp;
+    color: rgba(var(--pl-text-rgb), 85%);
+    cursor: pointer;
+}
+
+#disc-change:focus-visible {
+    color: #FFFFFF;
+    text-decoration: underline;
+    background-color: rgba(255, 255, 255, 10%);
+    box-shadow: 0 0 0 2dp #8CE04A, 0 0 0 4dp rgba(5, 11, 26, 85%);
+}
+
+disc-hint {
+    display: none;
+    padding-left: 2dp;
+    max-width: 600dp;
+    font-size: 15dp;
+    font-effect: var(--pl-glow-text);
+}
+
+disc-hint.mismatch { display: block; color: #FFD6A7; border-left: 3dp #FFB86B; }
+disc-hint.bad { display: block; color: #FFC2C8; border-left: 3dp #FF8A96; }
+
+/* A problem the player has to act on: on a dark tab of its own, and it slides in so a note that
+   appears far from the button that caused it still catches the eye. */
+disc-hint.mismatch, disc-hint.bad {
+    margin-top: 4dp;
+    padding: 5dp 10dp;
+    border-radius: 8dp;
+    background-color: rgba(5, 11, 26, 72%);
+    animation: 0.45s cubic-out 1 hint-in;
+}
+
+@keyframes hint-in {
+    0% { opacity: 0; transform: translateX(-14dp); }
+    100% { opacity: 1; transform: translateX(0dp); }
+}
+disc-hint.tip { display: block; color: var(--pl-muted); }
+
+/* ---------------------------------------------------------------- version and update (6.7) */
+
+version-info {
+    position: absolute;
+    right: var(--pl-edge);
+    bottom: 56dp;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 8dp;
+}
+
+version-label {
+    display: block;
+    font-size: 15dp;
+    color: rgba(var(--pl-text-rgb), 78%);
+    font-effect: var(--pl-glow-text);
+}
+
+update-status {
+    display: none;
+    flex-direction: row;
+    align-items: center;
+    justify-content: flex-end;
+    font-size: 15dp;
+    color: rgba(var(--pl-text-rgb), 88%);
+    font-effect: var(--pl-glow-text);
+}
+
+update-status[state=checking],
+update-status[state=failed],
+update-status[state=available] {
+    display: flex;
+}
+
+update-checking,
+update-failed {
+    display: none;
+    flex-direction: row;
+    align-items: center;
+    gap: 10dp;
+    height: 24dp;
+}
+
+update-status[state=checking] update-checking {
+    display: flex;
+}
+
+update-status[state=checking] update-checking beads {
+    display: flex;
+}
+
+update-checking bead {
+    width: 6dp;
+    height: 6dp;
+    border-radius: 3dp;
+}
+
+/* No opacity of its own while shown: RmlUi's opacity is inherited, not multiplied, so an own value
+   would keep the line visible when version-info steps back under a window (body.covered). */
+update-status[state=failed] update-failed {
+    display: flex;
+}
+
+update-status[state=failed].faded update-failed {
+    opacity: 0;
+    transition: opacity 0.6s cubic-in;
+}
+
+/* The pill: sun yellow, ink text, a sprout orb at the left. */
+#update-pill {
+    display: none;
+    flex-direction: row;
+    align-items: center;
+    gap: 8dp;
+    height: 36dp;
+    padding: 0 16dp 0 6dp;
+    border-radius: 18dp;
+    decorator: linear-gradient(180deg, #FFE27A, #FFD23F);
+    box-shadow: 0 4dp 14dp 0 rgba(5, 11, 26, 45%), inset 0 1dp 0 0 rgba(255, 255, 255, 50%);
+    font-family: var(--font-family-heading);
+    font-weight: 600;
+    font-size: 16dp;
+    color: #0A1A0C;
+    font-effect: none;
+    cursor: pointer;
+    transform-origin: right bottom;
+    transform: scale(0);
+}
+
+update-status[state=available] #update-pill {
+    display: flex;
+    transform: scale(1);
+    transition: transform 0.5s elastic-out;
+}
+
+#update-pill:focus-visible {
+    decorator: linear-gradient(180deg, #FFEC9E, #FFDA5C);
+    box-shadow: 0 0 0 2dp #8CE04A, 0 0 0 4dp rgba(5, 11, 26, 85%), 0 0 16dp 3dp rgba(140, 224, 74, 45%);
+}
+
+pill-orb {
+    display: block;
+    width: 24dp;
+    height: 24dp;
+    border-radius: 12dp;
+    background-color: rgba(255, 255, 255, 55%);
+}
+
+pill-orb icon {
+    display: block;
+    width: 24dp;
+    height: 24dp;
+    font-size: 18dp;
+    line-height: 24dp;
+    color: #2E7D32;
+    transform-origin: center bottom;
+    decorator: text("&#xe123;" center center);
+    animation: 3.2s sine-in-out infinite alternate leaf-sway;
+}
+
+pill-open {
+    display: block;
+    width: 16dp;
+    height: 16dp;
+    font-family: var(--font-family-icons);
+    font-weight: normal;
+    font-size: 16dp;
+    decorator: text("&#xe89e;" center center);
+}
+
+/* ---------------------------------------------------------------- button prompts (5.17) */
+
+/* On the version row, ending 24dp left of the version label. */
+version-row {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 24dp;
+}
+
+prompts {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 20dp;
+}
+
+body.pointer-input prompts {
+    visibility: hidden;
+}
+
+prompt {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 6dp;
+    font-weight: 700;
+    font-size: 15dp;
+    color: rgba(var(--pl-text-rgb), 80%);
+    font-effect: var(--pl-glow-text);
+}
+
+glyph {
+    display: block;
+    min-width: 26dp;
+    height: 26dp;
+    line-height: 26dp;
+    padding: 0 7dp;
+    border-radius: 7dp;
+    text-align: center;
+    font-family: var(--font-family-heading);
+    font-weight: 600;
+    font-size: 14dp;
+    color: rgb(var(--pl-text-rgb));
+    font-effect: none;
+    background-color: rgba(11, 23, 48, 70%);
+    box-shadow: 0 0 0 2dp rgba(111, 182, 222, 55%), inset 0 1dp 0 0 rgba(255, 255, 255, 18%);
+}
+
+glyph.pad {
+    width: 26dp;
+    min-width: 26dp;
+    padding: 0;
+    border-radius: 13dp;
+}
+
+/* ---------------------------------------------------------------- entrance (6.8) */
+
+/* Start states carry .intro-item; body.animate-in holds the end states and the delay ladder. The
+   C++ removes .intro-item once the entrance is over, so the take-off rules below apply at their
+   plain specificity. */
+
+.intro-item {
+    opacity: 0;
+}
+
+hero.intro-item {
+    transform: translateY(16dp);
+}
+
+#menu-list button.intro-item {
+    transform: translateX(-20dp);
+}
+
+disc-info.intro-item,
+version-info.intro-item {
+    transform: translateY(10dp);
+}
+
+/* A button already disabled at the entrance (Play as "Landing..." while the game boots behind the
+   menu) keeps its start state too: the :disabled opacity rules would otherwise out-rank it and show
+   it alone, before the wordmark. Its end state is its disabled opacity. */
+#menu-list button.intro-item:disabled,
+#menu-list button.play.intro-item:disabled {
+    opacity: 0;
+}
+
+body.animate-in .intro-item {
+    opacity: 1;
+    transform: none;
+}
+
+body.animate-in #menu-list button.intro-item:disabled { opacity: 0.5; }
+body.animate-in #menu-list button.play.intro-item:disabled { opacity: 0.8; }
+
+/* The "Landing..." beads animate their own opacity, which the button's would not hide (RmlUi's
+   opacity is inherited, not multiplied): they wait for the button to come in. */
+#menu-list button.intro-item bead {
+    opacity: 0;
+    animation: none;
+}
+
+body.animate-in #menu-list button.intro-item bead { animation: 0.45s 0.4s sine-in-out infinite alternate bead; }
+body.animate-in #menu-list button.intro-item bead + bead { animation: 0.45s 0.55s sine-in-out infinite alternate bead; }
+body.animate-in #menu-list button.intro-item bead + bead + bead { animation: 0.45s 0.7s sine-in-out infinite alternate bead; }
+
+body.animate-in hero.intro-item {
+    transition: opacity 0.3s 0.15s cubic-out, transform 0.42s 0.15s back-out;
+}
+
+body.animate-in wordmark-leaf {
+    transform: scale(1);
+    transition: transform 0.42s 0.45s back-out;
+}
+
+body.animate-in #menu-list button.intro-item { opacity: 1; transform: none; transition: opacity 0.24s 0.3s cubic-out, transform 0.32s 0.3s back-out; }
+body.animate-in #menu-list button.intro-item.n1 { transition: opacity 0.24s 0.37s cubic-out, transform 0.32s 0.37s back-out; }
+body.animate-in #menu-list button.intro-item.n2 { transition: opacity 0.24s 0.44s cubic-out, transform 0.32s 0.44s back-out; }
+body.animate-in #menu-list button.intro-item.n3 { transition: opacity 0.24s 0.51s cubic-out, transform 0.32s 0.51s back-out; }
+body.animate-in #menu-list button.intro-item.n4 { transition: opacity 0.24s 0.58s cubic-out, transform 0.32s 0.58s back-out; }
+body.animate-in #menu-list button.intro-item.n5 { transition: opacity 0.24s 0.65s cubic-out, transform 0.32s 0.65s back-out; }
+
+body.animate-in disc-info.intro-item {
+    transition: opacity 0.3s 0.65s cubic-out, transform 0.3s 0.65s cubic-out;
+}
+
+body.animate-in version-info.intro-item {
+    transition: opacity 0.3s 0.72s cubic-out, transform 0.3s 0.72s cubic-out;
+}
+
+/* A confirm press during the entrance, or a menu created again in the same run. */
+body.intro-skip,
+body.intro-skip intro-veil,
+body.intro-skip .intro-item,
+body.intro-skip wordmark-leaf,
+body.intro-skip scrims,
+body.intro-skip prelaunch-vignette {
+    transition: none;
+}
+
+/* ---------------------------------------------------------------- covered, picking, drop */
+
+/* Settings (or another window) over the menu: the menu steps back so only the backdrop or the
+   live scene shows through the glass. */
+menu,
+disc-info,
+version-info {
+    transition: opacity 0.2s cubic-out;
+}
+
+body.covered menu,
+body.covered disc-info,
+body.covered version-info {
+    opacity: 0;
+}
+
+/* The file dialog is open: the menu waits, a little dimmer, and takes no clicks. */
+body.picking menu,
+body.picking version-info {
+    opacity: 0.55;
+}
+
+body.picking content {
+    pointer-events: none;
+}
+
+body.picking prompts,
+body.picking disc-line,
+body.picking disc-hint {
+    visibility: hidden;
+}
+
+drop-target {
+    display: flex;
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    align-items: center;
+    justify-content: center;
+    background-color: rgba(5, 11, 26, 55%);
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.15s cubic-out, visibility 0.15s linear-in-out;
+}
+
+body.drop-hover drop-target {
+    opacity: 1;
+    visibility: visible;
+}
+
+drop-card {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 14dp;
+    padding: 36dp 56dp;
+    border-radius: 28dp;
+    border: 2dp rgba(140, 224, 74, 80%);
+    background-color: rgba(11, 23, 48, 88%);
+    font-family: var(--font-family-heading);
+    font-weight: 600;
+    font-size: 24dp;
+    color: rgb(var(--pl-text-rgb));
+}
+
+drop-card icon {
+    display: block;
+    width: 56dp;
+    height: 56dp;
+    font-family: var(--font-family-icons);
+    font-weight: normal;
+    font-size: 52dp;
+    color: #B9F27C;
+    decorator: text("&#xe019;" center center);
+}
+
+/* ---------------------------------------------------------------- take-off (7.2, 7.3) */
+
+body.launching content {
+    pointer-events: none;
+}
+
+/* Above the flash: the bars slide out clean over it instead of being washed into grey stripes by
+   the veil and the flash core while it closes. They are gone (display none) at the hand-over. */
+letterbox {
+    position: absolute;
+    left: 0;
+    width: 100%;
+    height: 6vh;
+    background-color: #03060F;
+    z-index: 1;
+}
+
+letterbox.top {
+    top: 0;
+    transform: translateY(-100%);
+}
+
+letterbox.bottom {
+    bottom: 0;
+    transform: translateY(100%);
+}
+
+body.launch-full letterbox {
+    transform: none;
+    transition: transform 0.5s 0.3s cubic-out;
+}
+
+/* Full: everything leaves in its own beat. */
+body.launch-full #menu-list button {
+    opacity: 0;
+    transform: translateX(-32dp);
+    transition: opacity 0.22s 0.12s cubic-in, transform 0.22s 0.12s cubic-in;
+}
+body.launch-full #menu-list button.k1 { transition: opacity 0.22s 0.17s cubic-in, transform 0.22s 0.17s cubic-in; }
+body.launch-full #menu-list button.k2 { transition: opacity 0.22s 0.22s cubic-in, transform 0.22s 0.22s cubic-in; }
+body.launch-full #menu-list button.k3 { transition: opacity 0.22s 0.27s cubic-in, transform 0.22s 0.27s cubic-in; }
+body.launch-full #menu-list button.k4 { transition: opacity 0.22s 0.32s cubic-in, transform 0.22s 0.32s cubic-in; }
+
+/* Play keeps its focused face through the press (anim-done is gone by now): the label stays where
+   it was and the sprout stays beside it, instead of the label snapping under a shrinking sprout. */
+body.launching #menu-list button.play.launch-focused {
+    padding-left: 50dp;
+}
+
+body.launching #menu-list button.launch-focused cursor-sprout {
+    transform: scale(1);
+    transition: none;
+}
+
+/* Play: press (0-90), spring (90-310), pluck out (400-660). */
+body.launch-full #menu-list button.play {
+    opacity: 0;
+    transform: translateY(-24dp) scale(0.9);
+    transition: none;
+    animation: 0.66s linear-in-out 1 play-launch;
+}
+
+@keyframes play-launch {
+    0% { transform: scale(1); opacity: 1; }
+    14% { transform: scale(0.94); opacity: 1; }
+    30% { transform: scale(1.04); opacity: 1; }
+    47% { transform: scale(1); opacity: 1; }
+    61% { transform: translateY(0dp) scale(1); opacity: 1; }
+    80% { transform: translateY(-6dp) scale(1.02); opacity: 0.7; }
+    100% { transform: translateY(-24dp) scale(0.9); opacity: 0; }
+}
+
+/* The halo jumps to full strength with the press and leaves with Play. It is set explicitly: it
+   sits below its button (z-index -1), outside the button's opacity. */
+body.launching #menu-list button.play play-halo {
+    opacity: 0;
+    animation: none;
+    transition: opacity 0.2s cubic-in;
+}
+
+body.launch-full #menu-list button.play play-halo {
+    transition: none;
+    animation: 0.66s linear-in-out 1 halo-launch;
+}
+
+@keyframes halo-launch {
+    0% { opacity: 0.6; }
+    14% { opacity: 1; }
+    61% { opacity: 1; }
+    100% { opacity: 0; }
+}
+
+body.launch-full disc-info,
+body.launch-full version-info {
+    opacity: 0;
+    transform: translateY(16dp);
+    transition: opacity 0.2s 0.12s cubic-in, transform 0.2s 0.12s cubic-in;
+}
+
+body.launch-full scrims,
+body.launch-full prelaunch-vignette {
+    opacity: 0;
+    transition: opacity 0.8s 0.3s sine-in-out;
+}
+
+body.launch-full hero {
+    opacity: 0;
+    transform: translateY(-40dp);
+    transition: opacity 0.4s 0.9s cubic-in, transform 0.4s 0.9s cubic-in;
+}
+
+body.launch-full wordmark-leaf {
+    transform: rotate(10deg);
+    transition: transform 0.4s 0.9s cubic-out;
+}
+
+/* Short: all UI fades together, then the scrims. */
+body.launch-short content > *,
+body.launch-short #menu-list button {
+    opacity: 0;
+    transition: opacity 0.2s cubic-in;
+}
+
+body.launch-short scrims,
+body.launch-short prelaunch-vignette {
+    opacity: 0;
+    transition: opacity 0.3s sine-in-out;
+}
+
+/* Off (and the standalone exit): the document's own content fades. */
+body.launch-off content,
+body.launch-off prelaunch-vignette {
+    opacity: 0;
+    transition: opacity 0.2s cubic-in;
+}
+
+/* The bloom: a warm glow at the ship (left/top set from the scene each frame). */
+launch-bloom {
+    position: absolute;
+    left: 62%;
+    top: 40%;
+    width: 160vh;
+    height: 160vh;
+    margin-left: -80vh;
+    margin-top: -80vh;
+    decorator: radial-gradient(circle closest-side, rgba(255, 228, 150, 55%) 0%, rgba(255, 150, 70, 26%) 35%, rgba(242, 92, 59, 8%) 65%, rgba(242, 92, 59, 0%) 100%);
+    opacity: 0;
+}
+
+body.launch-ignite launch-bloom {
+    opacity: 0.6;
+    transition: opacity 0.27s cubic-out;
+}
+
+body.launch-liftoff launch-bloom {
+    opacity: 0.85;
+    transition: opacity 0.5s linear-in-out;
+}
+
+/* The ship is out of the frame: its glow goes with it. */
+body.launch-bloom-off launch-bloom {
+    opacity: 0;
+    transition: opacity 0.12s cubic-out;
+}
+
+body.launch-navy launch-bloom {
+    display: none;
+}
+
+/* No live scene behind the menu (the backdrop is still up): the backdrop's own ship takes off,
+   and the bloom sits on it. */
+body.launch-backdrop launch-bloom {
+    left: 72%;
+    top: 36%;
+}
+
+body.launch-backdrop.launch-ignite bd-flame {
+    transform: scaleY(1.7);
+    animation: none;
+    transition: transform 0.27s back-out;
+}
+
+body.launch-backdrop.launch-liftoff bd-ship {
+    top: -40%;
+    transition: top 2.5s quadratic-in;
+}
+
+body.launch-backdrop.launch-liftoff launch-bloom {
+    opacity: 0;
+    transition: opacity 2.2s cubic-in;
+}
+
+/* The end flash: warm white, or navy for Off and reduced motion. */
+launch-flash {
+    display: flex;
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    align-items: center;
+    justify-content: center;
+    background-color: #FFF6E0;
+    color: rgba(var(--pl-text-rgb), 80%);
+    opacity: 0;
+}
+
+body.launch-navy launch-flash {
+    background-color: #050B1A;
+}
+
+/* The flash is never one flat colour: a brighter core where the ship left breathes slowly while
+   the title loads underneath. */
+/* Shown only while the flash is up: its animated opacity would not be hidden by the parent's. */
+flash-core {
+    display: none;
+    position: absolute;
+    left: -25%;
+    top: -45%;
+    width: 150%;
+    height: 150%;
+    decorator: radial-gradient(circle closest-side, rgba(255, 255, 255, 85%) 0%, rgba(255, 252, 242, 45%) 40%, rgba(255, 246, 224, 0%) 100%);
+    opacity: 0.55;
+    animation: 1.4s sine-in-out infinite alternate flash-breathe;
+}
+
+@keyframes flash-breathe {
+    from { opacity: 0.55; transform: scale(0.94); }
+    to { opacity: 1; transform: scale(1.08); }
+}
+
+body.launch-flash flash-core {
+    display: block;
+}
+
+/* It fades with the flash on the reveal (set on itself, like its display). */
+body.launch-reveal flash-core {
+    opacity: 0;
+    animation: none;
+    transition: opacity 1.2s quadratic-in;
+}
+
+body.launch-navy flash-core,
+body.launch-wait flash-core,
+body.reduce-motion flash-core {
+    display: none;
+}
+
+body.launch-flash launch-flash {
+    opacity: 1;
+    transition: opacity 0.4s cubic-in;
+}
+
+body.launch-navy.launch-flash launch-flash {
+    transition: opacity 0.3s cubic-in;
+}
+
+body.launch-off.launch-flash launch-flash {
+    transition: opacity 0.4s cubic-in;
+}
+
+body.launch-skip.launch-flash launch-flash {
+    transition: opacity 0.25s cubic-in;
+}
+
+/* The live scene fades itself to the flash colour underneath: the flash is a warm veil first and
+   closes to opaque (0.4 s) near the end of that fade; the bars and the bloom leave meanwhile. */
+body.launch-scene-fade.launch-flash launch-flash {
+    opacity: 0.3;
+    transition: opacity 0.5s sine-in-out;
+}
+
+body.launch-flash.launch-full letterbox.top {
+    transform: translateY(-100%);
+    transition: transform 0.45s cubic-in;
+}
+
+body.launch-flash.launch-full letterbox.bottom {
+    transform: translateY(100%);
+    transition: transform 0.45s cubic-in;
+}
+
+body.launch-flash.launch-skip.launch-full letterbox.top,
+body.launch-flash.launch-skip.launch-full letterbox.bottom {
+    transition: transform 0.25s cubic-in;
+}
+
+body.launch-flash launch-bloom {
+    opacity: 0;
+    transition: opacity 0.5s cubic-in;
+}
+
+/* At the hand-over the scene's last frame is the flash colour: opaque at once if still veiled or
+   still closing. Two classes, after the launch-skip / launch-off / launch-navy flash rules, so
+   their transitions cannot slow it. */
+body.launch-flash.launch-handoff launch-flash {
+    opacity: 1;
+    transition: none;
+}
+
+/* No hand-over 2 s after the flash: navy with the loader, waiting for the game. */
+body.launch-wait launch-flash {
+    background-color: #050B1A;
+    transition: background-color 0.6s cubic-out;
+}
+
+body.launch-wait launch-flash beads {
+    display: flex;
+    height: 24dp;
+}
+
+/* Under the opaque flash everything else goes. */
+body.launch-handoff prelaunch-background,
+body.launch-handoff prelaunch-vignette,
+body.launch-handoff content,
+body.launch-handoff letterbox,
+body.launch-handoff launch-bloom {
+    display: none;
+}
+
+body.launch-handoff launch-flash beads {
+    display: none;
+}
+
+/* The title section fades up from black on its own: a quick fade would show that black between the
+   flash and the title. The flash stays nearly opaque at first and then dissolves while the title is
+   coming up, so it reads as one move into the title (kept in step with prelaunch.cpp kRevealMs). */
+body.launch-flash.launch-reveal launch-flash {
+    opacity: 0;
+    transition: opacity 1.6s quadratic-in;
+}
+
+/* Out-ranks the skip rule too (it has two classes): a skipped take-off dissolves into the title
+   exactly like a watched one. */
+body.launch-navy.launch-flash.launch-reveal launch-flash {
+    transition: opacity 0.4s cubic-out;
+}
+
+/* ---------------------------------------------------------------- skip hint (7.2) */
+
+/* "Press any button to skip": a quiet pill at the bottom right, above the letterbox. */
+skip-hint {
+    position: absolute;
+    right: var(--pl-edge);
+    bottom: 9vh;
+    padding: 7dp 16dp;
+    border-radius: 999dp;
+    background-color: rgba(var(--pl-navy-rgb), 66%);
+    border: 1dp rgba(var(--pl-text-rgb), 22%);
+    color: rgba(var(--pl-text-rgb), 92%);
+    font-size: 14dp;
+    font-weight: 600;
+    font-effect: var(--pl-glow-text);
+    opacity: 0;
+    transform: translateY(6dp);
+    transition: opacity 0.25s cubic-in, transform 0.25s cubic-in;
+}
+
+body.skip-hint-on skip-hint {
+    opacity: 1;
+    transform: none;
+    transition: opacity 0.5s cubic-out, transform 0.5s cubic-out;
+}
+
+/* Quieter, but still readable on the bright ground and sky shots (the whole pill fades: RmlUi's
+   opacity is not per layer, so the text keeps its glow and the navy fill stays behind it). */
+body.skip-hint-on.skip-hint-dim skip-hint {
+    opacity: 0.72;
+    transition: opacity 1s sine-in-out;
+}
+
+/* It fades out (0.25 s) when the flash starts or on a skip, and is gone at the hand-over. */
+body.launch-handoff skip-hint {
+    display: none;
+}
+
+/* ---------------------------------------------------------------- other window shapes (6.6) */
+
+@media (max-width: 1400dp) {
+    body { --pl-edge: 64dp; }
+    menu { width: 380dp; }
+    wordmark-box { width: 380dp; height: 95dp; }
+}
+
+@media (max-width: 1100dp) {
+    body { --pl-edge: 40dp; }
+    menu { width: 340dp; }
+    wordmark-box { width: 340dp; height: 85dp; margin-left: -10dp; }
+    #menu-list button { width: 320dp; font-size: 26dp; }
+    #menu-list button.play { font-size: 30dp; }
+    #menu-list button.play.long { font-size: 23dp; }
+    prelaunch-gradient { width: 72%; }
+    disc-hint { max-width: 44vw; }
+    disc-version { max-width: 34vw; }
+}
+
+@media (max-width: 800dp) {
+    prompts { display: none; }
+}
+
+/* Short windows (Steam Deck, 720p at 125%, Menu Size 150% to 200%): the same layout as the full
+   size, a column on the left with the status rows in the bottom corners, only tighter. */
+@media (max-height: 640dp) {
+    body { --pl-edge: 40dp; }
+
+    menu {
+        width: 300dp;
+        top: 47%;
+        gap: 18dp;
+    }
+
+    hero { gap: 2dp; }
+    eyebrow { font-size: 15dp; }
+    wordmark-box { width: 280dp; height: 70dp; margin-left: -8dp; }
+    menu-list { gap: 6dp; }
+
+    #menu-list button {
+        width: 270dp;
+        height: 42dp;
+        line-height: 42dp;
+        border-radius: 21dp;
+        font-size: 21dp;
+        padding: 0 18dp;
+    }
+
+    #menu-list button.play { padding-right: 52dp; height: 50dp; line-height: 50dp; border-radius: 25dp; font-size: 25dp; }
+    #menu-list button.play.long { font-size: 18dp; }
+    play-halo { border-radius: 25dp; }
+
+    #menu-list button.anim-done:focus-visible,
+    body.launching #menu-list button.play.launch-focused { padding-left: 40dp; }
+
+    #menu-list button:disabled:hover,
+    #menu-list button.play:disabled:hover { padding-left: 18dp; }
+
+    cursor-sprout { left: 12dp; }
+    menu-icon { font-size: 22dp; right: 16dp; width: 26dp; }
+
+    /* The ship moves right, smaller, clear of the menu. */
+    bd-ship { left: 76%; top: 30%; transform: scale(0.7); }
+
+    disc-info { bottom: 24dp; gap: 4dp; }
+    #disc-status { height: 30dp; font-size: 15dp; border-radius: 15dp; }
+    status-orb, status-orb icon { width: 20dp; height: 20dp; line-height: 20dp; font-size: 14dp; }
+    disc-line, disc-hint, #disc-change { font-size: 13dp; }
+    disc-hint { max-width: 40vw; }
+
+    version-info { bottom: 24dp; gap: 6dp; }
+    version-label, update-status, prompt { font-size: 13dp; }
+    version-row { gap: 16dp; }
+    glyph { height: 22dp; line-height: 22dp; min-width: 22dp; font-size: 12dp; }
+    #update-pill { height: 30dp; font-size: 14dp; }
+    corner-scrim { width: 640dp; height: 300dp; }
+}
+
+/* Very short (720p at 200%): smaller again; the eyebrow goes before anything else does. */
+@media (max-height: 440dp) {
+    body { --pl-edge: 28dp; }
+    menu { width: 240dp; top: 44%; gap: 12dp; }
+    eyebrow { display: none; }
+    wordmark-box { width: 220dp; height: 55dp; margin-left: -6dp; }
+    menu-list { gap: 4dp; }
+    #menu-list button { width: 220dp; height: 34dp; line-height: 34dp; border-radius: 17dp; font-size: 17dp; padding: 0 14dp; }
+    #menu-list button.play { padding-right: 44dp; height: 40dp; line-height: 40dp; border-radius: 20dp; font-size: 20dp; }
+    #menu-list button.play.long { font-size: 14dp; }
+    play-halo { border-radius: 20dp; }
+    #menu-list button.anim-done:focus-visible,
+    body.launching #menu-list button.play.launch-focused { padding-left: 34dp; }
+    cursor-sprout { left: 9dp; transform-origin: center bottom; }
+    menu-icon { font-size: 18dp; right: 12dp; width: 22dp; }
+    bd-ship { left: 78%; top: 28%; transform: scale(0.5); }
+    disc-info { bottom: 14dp; gap: 2dp; }
+    #disc-status { height: 24dp; font-size: 12dp; border-radius: 12dp; padding: 0 10dp 0 4dp; gap: 5dp; }
+    status-orb, status-orb icon { width: 16dp; height: 16dp; line-height: 16dp; font-size: 12dp; }
+    disc-line, disc-hint, #disc-change { font-size: 11dp; }
+    disc-hint { max-width: 36vw; }
+    version-info { bottom: 14dp; gap: 4dp; }
+    version-label, update-status, prompt { font-size: 11dp; }
+    prompts { display: none; }
+    #update-pill { height: 24dp; font-size: 12dp; }
+}
+
+/* Portrait or very narrow: a bottom sheet. */
+@media (max-aspect-ratio: 1/1) {
+    menu {
+        left: 24dp;
+        right: 24dp;
+        width: auto;
+        top: 8%;
+        bottom: 120dp;
+        transform: none;
+        align-items: center;
+        justify-content: space-between;
+    }
+
+    hero { align-items: center; }
+    wordmark-box { width: 70vw; height: 17.5vw; margin-left: 0; }
+    menu-list { width: 100%; align-items: stretch; }
+    #menu-list button { width: auto; }
+
+    /* The scrim rises from the bottom (the menu) and a lighter band comes down from the top behind
+       the eyebrow and the wordmark, which would otherwise sit on the brightest part of the frame. */
+    prelaunch-gradient {
+        width: 100%;
+        decorator: linear-gradient(0deg, rgba(5, 11, 26, 70%) 0%, rgba(5, 11, 26, 40%) 30%, rgba(5, 11, 26, 0%) 52%, rgba(5, 11, 26, 0%) 64%, rgba(5, 11, 26, 50%) 86%, rgba(5, 11, 26, 66%) 100%);
+    }
+
+    eyebrow { color: rgba(var(--pl-text-rgb), 92%); }
+
+    /* The backdrop ship drops below the wordmark, into the gap above the menu. */
+    bd-ship { left: 70%; top: 46%; }
+
+    disc-info { left: 24dp; bottom: 24dp; }
+    version-info { right: 24dp; bottom: 24dp; }
+    prompts { display: none; }
+}
+
+/* Wide windows (16:10 and wider): the characters stand low in the right half and their feet reach the
+   bottom-right corner, so the update notice joins the version row instead of stacking above it, and
+   both status corners sit a little lower. Squarer windows keep the stacked corner: the row would
+   reach the disc line on the left. */
+@media (min-aspect-ratio: 8/5) {
+    disc-info { bottom: 44dp; }
+    version-info {
+        bottom: 44dp;
+        flex-direction: row;
+        align-items: center;
+        gap: 24dp;
+    }
+}
+
+@media (min-aspect-ratio: 8/5) and (max-height: 640dp) {
+    disc-info, version-info { bottom: 20dp; }
+    version-info { gap: 16dp; }
+}
+
+@media (min-aspect-ratio: 8/5) and (max-height: 440dp) {
+    disc-info, version-info { bottom: 12dp; }
+}
+
+/* 21:9 and wider: the UI stays inside a centred 21:9 stage near the characters. */
+@media (min-aspect-ratio: 7/3) {
+    content {
+        width: 233.33vh;
+        left: 50%;
+        margin-left: -116.67vh;
+    }
+}
+
+/* ---------------------------------------------------------------- accessibility (9) */
+
+body.high-contrast prelaunch-gradient {
+    width: 34%;
+    decorator: none;
+    background-color: rgba(5, 11, 26, 88%);
+}
+
+body.high-contrast eyebrow,
+body.high-contrast disc-line,
+body.high-contrast version-label,
+body.high-contrast update-status {
+    color: rgba(var(--pl-text-rgb), 90%);
+}
+
+body.high-contrast #disc-status {
+    background-color: rgb(11, 23, 48);
+    border: 2dp rgb(var(--pl-text-rgb));
+}
+
+body.glass-off #menu-list button.anim-done:focus-visible,
+body.high-contrast #menu-list button.anim-done:focus-visible {
+    backdrop-filter: none;
+}
+
+/* Reduced motion: no idle loops, no transforms; things fade in place. */
+body.reduce-motion bd-stars,
+body.reduce-motion bd-sun,
+body.reduce-motion bd-bob,
+body.reduce-motion bd-tilt,
+body.reduce-motion bd-flame,
+body.reduce-motion bd-spark,
+body.reduce-motion wordmark-leaf img,
+body.reduce-motion pill-orb icon,
+body.reduce-motion play-halo {
+    animation: none;
+}
+
+body.reduce-motion .intro-item,
+body.reduce-motion #menu-list button.intro-item,
+body.reduce-motion wordmark-leaf,
+body.reduce-motion #update-pill {
+    transform: none;
+}
+
+body.reduce-motion.landing bd-ship {
+    left: 72%;
+    top: 34%;
+    transform: none;
+    transition: opacity 0.3s linear-in-out;
+}
+
+body.reduce-motion.landing bd-glow {
+    animation: none;
+}
+
+body.reduce-motion cursor-sprout {
+    transition: none;
+}

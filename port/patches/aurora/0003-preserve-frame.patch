@@ -1,0 +1,126 @@
+diff --git a/include/aurora/aurora.h b/include/aurora/aurora.h
+index 56c7aae..4e0158b 100644
+--- a/include/aurora/aurora.h
++++ b/include/aurora/aurora.h
+@@ -131,6 +131,14 @@ void aurora_shutdown();
+ const AuroraEvent* aurora_update();
+ bool aurora_begin_frame();
+ void aurora_end_frame();
++/**
++ * For a frame with no GX drawing (e.g. the game is held while a menu is open): call between
++ * aurora_begin_frame and aurora_end_frame to keep the previous frame's picture instead of clearing
++ * the EFB, so it shows under the UI again. Returns false (and changes nothing) when this frame has
++ * already drawn, or when the EFB was recreated since the last frame (window resize, aspect lock,
++ * frame buffer scale): the old picture is gone, so the caller should draw a new one.
++ */
++bool aurora_preserve_frame();
+ 
+ void aurora_set_log_level(AuroraLogLevel level);
+ void aurora_set_pause_on_focus_lost(bool value);
+diff --git a/lib/aurora.cpp b/lib/aurora.cpp
+index 9430842..23c51aa 100644
+--- a/lib/aurora.cpp
++++ b/lib/aurora.cpp
+@@ -454,6 +454,14 @@ void aurora_shutdown() { aurora::shutdown(); }
+ const AuroraEvent* aurora_update() { return aurora::update(); }
+ bool aurora_begin_frame() { return aurora::begin_frame(); }
+ void aurora_end_frame() { aurora::end_frame(); }
++bool aurora_preserve_frame() {
++#ifdef AURORA_ENABLE_GX
++  aurora::gx::fifo::drain();
++  return aurora::gfx::preserve_efb();
++#else
++  return false;
++#endif
++}
+ AuroraBackend aurora_get_backend() { return aurora::g_config.desiredBackend; }
+ const AuroraBackend* aurora_get_available_backends(size_t* count) {
+   if (count != nullptr) {
+diff --git a/lib/gfx/recording.cpp b/lib/gfx/recording.cpp
+index 9d1df79..4a42b94 100644
+--- a/lib/gfx/recording.cpp
++++ b/lib/gfx/recording.cpp
+@@ -1155,6 +1155,28 @@ PipelineRef pipeline_ref(const rmlui::PipelineConfig& config) {
+ }
+ #endif
+ 
++// EFB generation of the last finished frame: a preserved frame can only load the previous picture
++// from the same textures (a recreated EFB starts undefined, shown as black).
++static uint32_t g_finishedEfbGeneration = UINT32_MAX;
++
++bool preserve_efb() noexcept {
++  if (!g_recorder.active() || g_recorder.inOffscreen || g_recorder.currentRenderPass != 0) {
++    return false;
++  }
++  if (g_finishedEfbGeneration != webgpu::g_frameBufferGeneration) {
++    return false;
++  }
++  auto& pass = current_render_passes()[0];
++  if (pass.hasDraws) {
++    return false;
++  }
++  for (uint32_t i = 0; i < pass.colorAttachmentCount; ++i) {
++    pass.colorAttachments[i].clear = false; // loadOp stays Undefined: encoded as Load
++  }
++  pass.clearDepth = false;
++  return true;
++}
++
+ void finish() {
+   ZoneScoped;
+   if (!g_recorder.active()) {
+@@ -1169,6 +1191,7 @@ void finish() {
+     enqueue_pass(frame, g_recorder.currentRenderPass);
+     g_recorder.currentRenderPass = UINT32_MAX;
+   }
++  g_finishedEfbGeneration = webgpu::g_frameBufferGeneration;
+ }
+ 
+ Range push_verts(const uint8_t* data, size_t length, size_t alignment) {
+diff --git a/lib/gfx/recording.hpp b/lib/gfx/recording.hpp
+index c1b4a7d..d8c3533 100644
+--- a/lib/gfx/recording.hpp
++++ b/lib/gfx/recording.hpp
+@@ -51,6 +51,9 @@ struct ColorPassDescriptor {
+ };
+ 
+ void finish();
++// The first EFB pass of the frame loads the previous contents instead of clearing them, if nothing
++// has been drawn yet this frame. Returns whether it applied.
++bool preserve_efb() noexcept;
+ void begin_color_pass(const ColorPassDescriptor& desc);
+ void end_color_pass();
+ void queue_texture_copy(wgpu::TexelCopyTextureInfo src, wgpu::TexelCopyTextureInfo dst, wgpu::Extent3D size);
+diff --git a/lib/webgpu/gpu.cpp b/lib/webgpu/gpu.cpp
+index b3ae6cd..0973564 100644
+--- a/lib/webgpu/gpu.cpp
++++ b/lib/webgpu/gpu.cpp
+@@ -46,6 +46,7 @@ wgpu::Surface g_surface;
+ wgpu::BackendType g_backendType;
+ GraphicsConfig g_graphicsConfig;
+ TextureWithSampler g_frameBuffer;
++uint32_t g_frameBufferGeneration = 0;
+ TextureWithSampler g_frameBufferResolved;
+ TextureWithSampler g_depthBuffer;
+ TextureWithSampler g_normalBuffer;
+@@ -1143,6 +1144,7 @@ static void resize_swapchain_internal(uint32_t width, uint32_t height, uint32_t
+     g_surface.Configure(&surfaceConfiguration);
+   }
+   g_frameBuffer = create_render_texture(width, height, true);
++  ++g_frameBufferGeneration;
+   g_frameBufferResolved = create_render_texture(width, height, false);
+   g_depthBuffer = create_depth_texture(width, height);
+   if (g_graphicsConfig.normalBuffer) {
+diff --git a/lib/webgpu/gpu.hpp b/lib/webgpu/gpu.hpp
+index a1ce5c0..7915082 100644
+--- a/lib/webgpu/gpu.hpp
++++ b/lib/webgpu/gpu.hpp
+@@ -48,6 +48,8 @@ extern wgpu::Surface g_surface;
+ extern wgpu::BackendType g_backendType;
+ extern GraphicsConfig g_graphicsConfig;
+ extern TextureWithSampler g_frameBuffer;
++// Bumped whenever the EFB textures are recreated (resize, aspect lock, scale, surface refresh).
++extern uint32_t g_frameBufferGeneration;
+ extern TextureWithSampler g_frameBufferResolved;
+ extern TextureWithSampler g_depthBuffer;
+ extern TextureWithSampler g_normalBuffer;

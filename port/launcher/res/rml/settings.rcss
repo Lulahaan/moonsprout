@@ -1,0 +1,576 @@
+/* Settings window and first-run preset (docs/launcher/DESIGN.md 5.4, 5.10, 5.11; SETTINGS.md 1.5,
+   11, 12). Loaded after window.rcss, so it only adds what those sheets don't have. Colours come
+   from the theme where it has them; sun yellow (#FFD23F, "changed / needs restart"), sprout green
+   and the danger red are written out until the theme carries them as tokens (DESIGN 3.1). */
+
+/* ---- Panes ---- */
+
+window.settings content pane:last-of-type {
+    flex: 0 0 36%;
+    background-color: rgba(var(--color-control-rgb), 30%);
+    gap: var(--space-md);
+    focus: none; /* only its buttons take focus (button { focus: auto } in global.rcss) */
+}
+
+help-title {
+    display: block;
+    font-family: var(--font-family-heading);
+    font-weight: bold;
+    font-size: var(--font-size-3xl);
+    line-height: 1.25;
+}
+
+window.settings content pane:last-of-type > div.help-body {
+    font-size: var(--font-size-lg);
+    line-height: 1.45;
+    color: rgba(var(--color-text-rgb), 85%);
+}
+
+help-notes {
+    display: block;
+}
+
+help-note {
+    display: flex;
+    flex-flow: row;
+    align-items: flex-start;
+    gap: var(--space-sm);
+    margin-top: var(--space-xs);
+    font-size: var(--font-size-md);
+    line-height: 1.4;
+    color: rgba(var(--color-text-rgb), 80%);
+}
+
+note-icon,
+badge-icon,
+banner-icon {
+    display: block;
+    flex: 0 0 auto;
+    font-family: var(--font-family-icons);
+    font-weight: normal;
+    line-height: 1;
+}
+
+help-note note-icon {
+    font-size: 20dp;
+    margin-top: 1dp;
+}
+
+note-text {
+    display: block;
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+help-note.lock note-icon { color: rgb(var(--color-info-rgb)); }
+help-note.restart note-icon { color: rgba(255, 210, 63, 70%); }
+help-note.restart.pending { color: #FFD23F; }
+help-note.restart.pending note-icon { color: #FFD23F; }
+help-note.experimental note-icon { color: rgb(var(--color-warning-rgb)); }
+help-note.warning { color: rgb(var(--color-warning-rgb)); }
+help-note.warning note-icon { color: rgb(var(--color-warning-rgb)); }
+
+help-default {
+    display: block;
+    font-size: var(--font-size-md);
+    color: rgba(var(--color-text-rgb), 55%);
+}
+
+window.settings content pane > button.reset-button {
+    align-self: flex-start;
+}
+
+/* Its shortcut after the label (DESIGN 5.17): a key cap for the key bound to Y (Q), or an orb for
+   the controller's Y; only the last used device's glyph is shown. */
+button.reset-button reset-key {
+    display: inline-block;
+    min-width: 20dp;
+    height: 20dp;
+    margin-left: 10dp;
+    padding: 0 5dp;
+    border-radius: 5dp;
+    box-sizing: border-box;
+    font-family: var(--font-family-heading);
+    font-weight: 600;
+    font-size: var(--font-size-xs);
+    line-height: 20dp;
+    text-align: center;
+    color: rgba(var(--color-text-rgb), 85%);
+    background-color: rgba(var(--color-surface-rgb), 55%);
+    box-shadow: 0 0 0 1dp rgba(111, 182, 222, 55%);
+}
+
+button.reset-button reset-key.pad {
+    border-radius: 10dp;
+}
+
+help-status {
+    display: block;
+}
+
+status-line {
+    display: block;
+    font-weight: bold;
+    margin-bottom: var(--space-xs);
+}
+
+/* Paths in the help pane come as one <path-part> per folder (path_rml): they wrap after a slash.
+ * A folder name too long for a line of its own (a large Menu Size, a UUID-named folder) is broken
+ * inside instead of running past the pane's edge: break-word only breaks a word that starts a
+ * line and still does not fit. */
+file-path {
+    word-break: normal;
+}
+
+path-part {
+    display: inline;
+    word-break: break-word;
+}
+
+status-line.good { color: rgb(var(--color-success-rgb)); }
+status-line.bad { color: rgb(var(--color-warning-rgb)); }
+
+/* ---- Rows ---- */
+
+row-badges {
+    display: flex;
+    flex: 0 0 auto;
+    flex-flow: row;
+    align-items: center;
+    gap: var(--space-xs);
+}
+
+row-badge {
+    display: flex;
+    flex-flow: row;
+    align-items: center;
+    gap: 4dp;
+    height: 24dp;
+    padding: 0 7dp;
+    border-radius: 12dp;
+    font-family: var(--font-family-body);
+    font-size: var(--font-size-sm);
+    font-weight: bold;
+    text-transform: none;
+    white-space: nowrap;
+    background-color: rgba(var(--color-neutral-rgb), 12%);
+    color: rgba(var(--color-text-rgb), 75%);
+}
+
+row-badge badge-icon {
+    font-size: 16dp;
+}
+
+/* Only "Restart required" spells itself out on the row; the others are icons, and the help pane
+   explains them all. */
+row-badge badge-text {
+    display: none;
+}
+
+row-badge.restart {
+    background-color: rgba(255, 210, 63, 18%);
+    color: #FFD23F;
+}
+
+row-badge.restart badge-text {
+    display: block;
+}
+
+/* "Applying..." on the start menu (live_options_design 3.9): spelt out, like "Restart required". */
+row-badge.applying {
+    background-color: rgba(var(--color-info-rgb), 18%);
+    color: rgb(var(--color-info-rgb));
+}
+
+row-badge.applying badge-text {
+    display: block;
+}
+
+row-badge.lock {
+    color: rgb(var(--color-info-rgb));
+}
+
+row-badge.experimental {
+    color: rgb(var(--color-warning-rgb));
+}
+
+select-button.info-row value {
+    color: rgba(var(--color-text-rgb), 70%);
+}
+
+select-button.action-row value {
+    color: rgba(var(--color-text-rgb), 70%);
+    font-size: var(--font-size-lg);
+}
+
+.settings-notice {
+    display: flex;
+    flex-flow: row;
+    align-items: flex-start;
+    gap: var(--space-md);
+    padding: var(--space-md) var(--space-lg);
+    margin-bottom: var(--space-xs);
+    border-radius: 16dp;
+    font-size: var(--font-size-lg);
+    line-height: 1.4;
+}
+
+.settings-notice note-icon {
+    font-size: 24dp;
+}
+
+.settings-notice.danger {
+    background-color: rgba(var(--color-error-rgb), 18%);
+    border-width: 1dp;
+    border-color: rgba(var(--color-error-rgb), 55%);
+    color: #FFD9D6;
+}
+
+.settings-notice.danger note-icon {
+    color: #FF8A80;
+}
+
+advanced-note {
+    display: block;
+    margin-top: var(--space-md);
+    font-size: var(--font-size-md);
+    color: rgba(var(--color-text-rgb), 62%);
+}
+
+/* ---- Restart banner (DESIGN 5.10) ---- */
+
+restart-banner {
+    display: none;
+    flex: 0 0 auto;
+    flex-flow: row;
+    align-items: center;
+    gap: var(--space-md);
+    min-height: 52dp;
+    padding: var(--space-sm) var(--space-lg) var(--space-sm) var(--space-xl);
+    background-color: rgba(255, 210, 63, 14%);
+    border-top-width: 1dp;
+    border-top-color: rgba(255, 210, 63, 45%);
+}
+
+restart-banner banner-icon {
+    font-size: 24dp;
+    color: #FFD23F;
+}
+
+banner-text {
+    display: block;
+    flex: 1 1 auto;
+    min-width: 0;
+    font-size: var(--font-size-lg);
+    font-weight: bold;
+    color: #FFE9A3;
+}
+
+restart-banner button {
+    flex: 0 0 auto;
+    font-size: var(--font-size-md);
+    padding: 6dp var(--space-lg);
+}
+
+button.confirm {
+    color: #0A1A0C;
+    font-weight: bold;
+    decorator: linear-gradient(180deg, #A6EA6A, #6FD649);
+}
+
+button.confirm:not(:disabled):hover,
+button.confirm:not(:disabled):focus-visible {
+    decorator: linear-gradient(180deg, #B9F27C, #7FE05A);
+}
+
+/* ---- First-run preset (SETTINGS 12) ----
+   The cards stay side by side at every size; the miniature, the type and the spacing shrink with
+   the window's height (vh), so the whole card fits from 640x480 up without scrolling. */
+
+window.modal.preset {
+    width: 820dp;
+    max-width: 100%;
+    max-height: 100%;
+}
+
+window.preset modal-dialog {
+    align-items: stretch;
+    overflow: hidden auto; /* last resort only */
+}
+
+preset-grid {
+    display: flex;
+    flex-flow: row;
+    gap: 20dp;
+    width: 100%;
+    flex: 0 0 auto;
+    align-items: stretch;
+}
+
+button.preset-card {
+    display: flex;
+    flex-flow: column;
+    align-items: center;
+    flex: 1 1 0;
+    min-width: 0;
+    gap: var(--space-sm);
+    padding: var(--space-lg) var(--space-lg) var(--space-xl);
+    border-radius: 22dp;
+    text-align: center;
+}
+
+preset-art {
+    display: block;
+    width: 100%;
+    padding: 6dp;
+}
+
+/* A 16:9 screen... */
+art-screen {
+    display: block;
+    position: relative;
+    width: 100%;
+    height: 20vh;
+    max-height: 180dp;
+    border-radius: 12dp;
+    overflow: hidden;
+    background-color: #050B1A;
+    box-shadow: rgba(var(--color-border-rgb), 45%) 0 0 0 2dp;
+}
+
+/* ...showing the game's picture: pillarboxed at 4:3 for Original, edge to edge for Modern. */
+art-picture {
+    display: block;
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    overflow: hidden;
+    decorator: linear-gradient(180deg, #6FB6DE 0%, #BFE6FF 70%, #FFE9B0 100%);
+}
+
+button.original art-picture {
+    left: 12.5%;
+    right: 12.5%;
+}
+
+button.modern art-picture {
+    left: 0;
+    right: 0;
+}
+
+art-sun {
+    display: block;
+    position: absolute;
+    top: 16%;
+    right: 18%;
+    width: 3.2vh;
+    height: 3.2vh;
+    max-width: 30dp;
+    max-height: 30dp;
+    border-radius: 15dp;
+    background-color: #FFD23F;
+    box-shadow: rgba(255, 210, 63, 50%) 0 0 12dp 3dp;
+}
+
+art-hill {
+    display: block;
+    position: absolute;
+    left: -10%;
+    right: -10%;
+    bottom: -34%;
+    height: 68%;
+    border-radius: 60dp;
+    decorator: linear-gradient(180deg, #8CE04A, #2E7D32);
+}
+
+art-sprout {
+    display: block;
+    position: absolute;
+    left: 46%;
+    bottom: 28%;
+    width: 1.6vh;
+    height: 1.6vh;
+    max-width: 16dp;
+    max-height: 16dp;
+    border-radius: 16dp 2dp 16dp 2dp;
+    background-color: #B9F27C;
+}
+
+/* HUD hints: corner pills inside the picture, so they sit in the screen's corners only when the
+   picture fills it. */
+art-hud hud-l,
+art-hud hud-r {
+    display: block;
+    position: absolute;
+    bottom: 7%;
+    width: 19%;
+    height: 7%;
+    border-radius: 6dp;
+    background-color: rgba(255, 255, 255, 80%);
+}
+
+art-hud hud-l { left: 6%; }
+art-hud hud-r { right: 6%; }
+
+preset-name {
+    display: block;
+    font-family: var(--font-family-heading);
+    font-weight: bold;
+    font-size: var(--font-size-5xl);
+    margin-top: var(--space-xs);
+}
+
+preset-tag {
+    display: block;
+    padding: 2dp 12dp;
+    border-radius: 12dp;
+    font-size: var(--font-size-sm);
+    font-weight: bold;
+    color: #0A1A0C;
+    background-color: #FFD23F;
+}
+
+preset-blurb {
+    display: block;
+    font-size: var(--font-size-lg);
+    line-height: 1.4;
+    color: rgba(var(--color-text-rgb), 85%);
+}
+
+preset-updates {
+    display: flex;
+    flex-flow: column;
+    flex: 0 0 auto;
+    gap: var(--space-sm);
+    width: 100%;
+}
+
+preset-caption {
+    display: block;
+    font-size: var(--font-size-md);
+    line-height: 1.4;
+    color: rgba(var(--color-text-rgb), 62%);
+}
+
+/* Short windows (720p at 100%, 1080p at 150%): tighter. */
+@media (max-height: 800dp) {
+    /* The settings window sets its own body padding inline: this only reaches the preset. */
+    body {
+        padding: 24dp;
+    }
+    window.preset modal-dialog {
+        gap: 12dp;
+        padding: 18dp 24dp 20dp;
+    }
+    button.preset-card {
+        gap: 4dp;
+        padding: 10dp 12dp 14dp;
+    }
+    art-screen {
+        height: 17vh;
+    }
+    preset-name {
+        font-size: var(--font-size-4xl);
+        margin-top: 0;
+    }
+    preset-blurb {
+        font-size: var(--font-size-md);
+        line-height: 1.3;
+    }
+    preset-caption {
+        font-size: var(--font-size-sm);
+        line-height: 1.3;
+    }
+}
+
+/* Very short (960x540, 1080p at 200%) and 640x480: the smallest type the screen allows. */
+@media (max-height: 600dp) {
+    window.preset modal-dialog {
+        gap: 8dp;
+        padding: 12dp 16dp 14dp;
+    }
+    window.preset modal-header icon {
+        flex: 0 0 32dp;
+        width: 32dp;
+        height: 32dp;
+        border-radius: 16dp;
+        font-size: 18dp;
+    }
+    window.preset modal-title {
+        font-size: var(--font-size-3xl);
+    }
+    window.preset modal-body {
+        font-size: var(--font-size-sm);
+        line-height: 1.3;
+    }
+    preset-grid {
+        gap: 12dp;
+    }
+    button.preset-card {
+        gap: 2dp;
+        padding: 6dp 10dp 10dp;
+        border-radius: 16dp;
+    }
+    preset-art {
+        padding: 4dp;
+    }
+    art-screen {
+        height: 14vh;
+        border-radius: 8dp;
+    }
+    preset-name {
+        font-size: var(--font-size-3xl);
+    }
+    preset-tag {
+        padding: 0 10dp;
+    }
+    preset-blurb {
+        font-size: var(--font-size-sm);
+    }
+    preset-updates {
+        gap: 4dp;
+    }
+}
+
+@media (max-width: 768dp) {
+    preset-grid {
+        gap: 10dp;
+    }
+    button.preset-card {
+        padding-left: 8dp;
+        padding-right: 8dp;
+    }
+    preset-blurb {
+        font-size: var(--font-size-sm);
+    }
+}
+
+/* Short layouts (large Menu Size, small windows): a tighter help pane, so a row's full help (text,
+ * notes, a path) still fits without scrolling. */
+@media (max-height: 640dp) {
+    window.settings content pane:last-of-type {
+        padding: 18dp 20dp;
+        gap: var(--space-sm);
+    }
+    help-title {
+        font-size: var(--font-size-2xl);
+    }
+    window.settings content pane:last-of-type > div.help-body {
+        font-size: var(--font-size-md);
+        line-height: 1.35;
+    }
+}
+
+/* The pointer has not moved since the window opened, the tab changed or the window came back
+ * (settings_window.cpp set_hover_hold): a row that merely lies under it does not look hovered, so
+ * only the keyboard / pad focus is marked. */
+window.settings.pointer-idle content select-button:not(:disabled):not(:focus-visible):not(:selected):hover,
+window.settings.pointer-idle content button:not(:disabled):not(:focus-visible):not(:selected):hover {
+    background-color: var(--button-background);
+    box-shadow: var(--shadow-control);
+}
+
+window.settings.pointer-idle content select-button.stepper-button:not(:focus-visible):hover step-chev:not(.end) {
+    color: rgba(var(--color-text-rgb), 45%);
+    transform: none;
+}

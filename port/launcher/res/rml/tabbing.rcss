@@ -1,0 +1,209 @@
+/*
+ * Tab bars (DESIGN.md 5.9): Title Case labels, and a two-leaf sprout that grows out of the bar's
+ * bottom edge under the selected tab. TabBar::add_tab (ui/tab_bar.cpp) appends the sprout:
+ * <tab>Video<sprout><stem/><leaf class="l"/><leaf class="r"/></sprout></tab>
+ */
+tab-bar {
+    display: flex;
+    position: relative;
+    min-width: 0;
+    overflow: auto hidden;
+    clip: always;
+}
+
+tab-bar scrollbarhorizontal,
+tab-bar scrollbarhorizontal sliderarrowdec,
+tab-bar scrollbarhorizontal sliderarrowinc,
+tab-bar scrollbarhorizontal slidertrack,
+tab-bar scrollbarhorizontal sliderbar {
+    width: 0;
+    height: 0;
+}
+
+/* The tab is inset 8dp from the bar's top and bottom so its hover wash and focus ring are
+ * rounded pills; the sprout reaches back down to the bar's edge. */
+tab-bar tab {
+    display: block;
+    position: relative;
+    flex: 0 0 auto;
+    margin: 8dp 2dp;
+    padding: 0 20dp;
+    line-height: 48dp;
+    border-radius: 14dp;
+    white-space: nowrap;
+    letter-spacing: 0.02em;
+    color: rgba(var(--color-text-rgb), 66%); /* 60% measured 4.7:1 under the bar shine */
+    decorator: radial-gradient(ellipse at 50% 100%, rgba(140, 224, 74, 0%) 0%, rgba(140, 224, 74, 0%) 70%);
+    transition: color 0.12s cubic-out, decorator 0.12s cubic-out;
+    cursor: pointer;
+}
+
+/* Hover only brightens the label; focus adds the sprout wash and ring (hover and keyboard focus
+ * can be on different tabs at once). */
+tab-bar tab:hover {
+    color: var(--color-text);
+}
+
+tab-bar tab:focus-visible {
+    color: var(--color-text);
+    decorator: radial-gradient(ellipse at 50% 100%, rgba(140, 224, 74, 22%) 0%, rgba(140, 224, 74, 0%) 70%);
+}
+
+tab-bar tab:focus-visible {
+    box-shadow: inset 0 0 0 2dp rgb(140, 224, 74);
+}
+
+tab-bar tab:selected {
+    color: var(--color-text);
+    font-effect: glow(0dp 4dp 0dp 2dp rgba(5, 11, 26, 85%));
+}
+
+tab-bar tab:active {
+    decorator: radial-gradient(ellipse at 50% 100%, rgba(140, 224, 74, 36%) 0%, rgba(140, 224, 74, 0%) 70%);
+}
+
+tab-bar tab sprout {
+    display: block;
+    position: absolute;
+    left: 50%;
+    bottom: -8dp;
+    width: 24dp;
+    height: 18dp;
+    margin-left: -12dp;
+    transform: scale(0);
+    transform-origin: center bottom;
+    transition: transform 0.12s cubic-in;
+    pointer-events: none;
+    font-effect: none;
+}
+
+tab-bar tab sprout stem {
+    left: 10dp;
+    bottom: 0;
+    width: 4dp;
+    height: 9dp;
+}
+
+tab-bar tab sprout leaf {
+    bottom: 6dp;
+    width: 11dp;
+    height: 11dp;
+}
+
+tab-bar tab sprout leaf.l {
+    left: 1dp;
+}
+
+tab-bar tab sprout leaf.r {
+    right: 1dp;
+}
+
+tab-bar tab:selected sprout {
+    transform: scale(1);
+    transition: transform 0.32s back-out;
+}
+
+tab-bar update-badge {
+    font-effect: none;
+}
+
+/* A closable bar: the tabs scroll in <tab-strip>, and the close button follows the strip, so it
+ * never covers a tab. Fades at either end of the strip show that more tabs are out of view. */
+tab-bar[closable] {
+    align-items: center;
+    overflow: hidden;
+}
+
+tab-bar[closable] tab-strip {
+    display: flex;
+    position: relative;
+    flex: 1 1 auto;
+    min-width: 0;
+    height: 100%;
+    overflow: auto hidden;
+    clip: always;
+}
+
+tab-bar[closable] tab-strip scrollbarhorizontal,
+tab-bar[closable] tab-strip scrollbarhorizontal sliderarrowdec,
+tab-bar[closable] tab-strip scrollbarhorizontal sliderarrowinc,
+tab-bar[closable] tab-strip scrollbarhorizontal slidertrack,
+tab-bar[closable] tab-strip scrollbarhorizontal sliderbar {
+    width: 0;
+    height: 0;
+}
+
+tab-bar[closable].more-right tab-strip {
+    mask-image: linear-gradient(90deg, #FFFFFF 0%, #FFFFFF 88%, rgba(255, 255, 255, 0%) 100%);
+}
+
+tab-bar[closable].more-left tab-strip {
+    mask-image: linear-gradient(90deg, rgba(255, 255, 255, 0%) 0%, #FFFFFF 12%, #FFFFFF 100%);
+}
+
+tab-bar[closable].more-left.more-right tab-strip {
+    mask-image: linear-gradient(90deg, rgba(255, 255, 255, 0%) 0%, #FFFFFF 12%, #FFFFFF 88%, rgba(255, 255, 255, 0%) 100%);
+}
+
+tab-bar[closable] close {
+    flex: 0 0 40dp;
+    margin: 0 4dp 0 8dp;
+}
+
+/* Close (5.9): a 40dp circle whose cross turns a quarter on hover. */
+window > close {
+    position: fixed;
+    top: 12dp;
+    right: 12dp;
+    z-index: 2;
+}
+
+tab-bar[closable] close,
+window > close {
+    display: block;
+    width: 40dp;
+    height: 40dp;
+    border-radius: 20dp;
+    font-family: var(--font-family-icons);
+    font-weight: normal;
+    font-size: var(--font-size-4xl);
+    color: var(--text-secondary);
+    decorator: text("&#xe5cd;" center center);
+    transform-origin: center;
+    transition: color 0.12s cubic-out, background-color 0.12s cubic-out, transform 0.2s back-out;
+    cursor: pointer;
+    focus: auto;
+}
+
+window.image-header > close {
+    backdrop-filter: blur(2dp);
+}
+
+tab-bar[closable] close:hover,
+tab-bar[closable] close:focus-visible,
+window > close:hover,
+window > close:focus-visible {
+    color: var(--color-text);
+    background-color: rgba(var(--color-interactive-rgb), 18%);
+    transform: rotate(90deg);
+}
+
+tab-bar[closable] close:focus-visible,
+window > close:focus-visible {
+    box-shadow: var(--shadow-focus);
+}
+
+tab-bar[closable] close:active,
+window > close:active {
+    color: var(--color-text);
+    background-color: rgba(var(--color-accent-rgb), 30%);
+}
+
+/* Narrow windows (large Menu Size): tighter tabs, so all eight of the settings window's tabs still
+ * fit beside the close button at the smallest layout (960 dp wide). */
+@media (max-width: 1100dp) {
+    tab-bar[closable] tab {
+        margin: 8dp 1dp;
+        padding: 0 12dp;
+    }
+}

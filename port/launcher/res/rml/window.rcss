@@ -1,0 +1,624 @@
+/*
+ * Windows, panes and modals (DESIGN.md 5.10, 5.11): smoked navy glass with a cyan rim and a soft
+ * top shine. The C++ (ui/window.cpp) pads the body to the safe area and toggles `[open]`; the
+ * `transitionend` of the window's filter is what finally hides a closing document, so the filter
+ * transition must never be removed.
+ */
+body {
+    display: flex;
+    width: 100%;
+    height: 100%;
+    padding: 48dp;
+    font-family: var(--font-family-body);
+    font-weight: 600;
+    font-style: normal;
+    font-size: var(--font-size-base);
+    color: var(--color-text);
+}
+
+/* Small windows (modals, the first-run preset) dim what is behind them. */
+body.dialog {
+    background-color: rgba(5, 11, 26, 55%);
+    animation: 0.2s cubic-out 1 scrim-in;
+}
+
+@keyframes scrim-in {
+    from { background-color: rgba(5, 11, 26, 0%); }
+    to { background-color: rgba(5, 11, 26, 55%); }
+}
+
+window {
+    display: flex;
+    flex-flow: column;
+    position: relative;
+    height: 100%;
+    width: 100%;
+    max-width: 1120dp;
+    max-height: 760dp;
+    margin: auto;
+    overflow: hidden;
+    border-radius: 28dp;
+    border-width: 2dp;
+    border-color: var(--rim-color);
+    background-color: var(--surface-window);
+    decorator: var(--surface-shine);
+    backdrop-filter: var(--blur-panel);
+    /* RmlUi renders a box shadow into one texture of the element's size plus 1.5 x blur + spread +
+     * offset on each side, and a texture larger than the viewport is clipped and then stretched
+     * back over the full area: a ghost frame that runs off the window. These shadows reach at most
+     * 44dp out, inside the 48dp body padding (--shadow-window reaches 90dp). */
+    box-shadow: 0 8dp 24dp 0 rgba(5, 11, 26, 60%), 0 0 16dp 2dp rgba(90, 184, 255, 18%), inset 0 1dp 0 0 rgba(255, 255, 255, 30%), inset 0 -10dp 24dp 0 rgba(5, 11, 26, 35%);
+    filter: opacity(0);
+    transform: scale(0.92);
+    transform-origin: center;
+    transition: filter 0.2s cubic-out, transform 0.26s back-out;
+}
+
+window[open] {
+    filter: opacity(1);
+    transform: scale(1);
+}
+
+/* Put back after a start-menu relaunch (live_options_design 3.8): already open, no entrance. The
+ * class goes after a few frames, so the close transition (which hides the document) still runs. */
+window.resume,
+window.resume content pane {
+    transition: none;
+    animation: none;
+}
+
+window.small {
+    height: auto;
+    width: auto;
+}
+
+window.modal {
+    width: 560dp;
+    max-width: 100%;
+    border-radius: 28dp;
+    background-color: rgba(11, 23, 48, 92%);
+}
+
+window.modal.danger {
+    border-color: var(--color-danger-border);
+}
+
+@media (max-height: 896dp) {
+    window.modal {
+        max-height: 100%;
+    }
+}
+
+/* 16dp around the window leaves no room for an outer shadow (see above): keep only the inset rim. */
+@media (max-height: 640dp) {
+    body {
+        padding: 16dp;
+    }
+    window {
+        box-shadow: inset 0 1dp 0 0 rgba(255, 255, 255, 30%), inset 0 -10dp 24dp 0 rgba(5, 11, 26, 35%);
+    }
+}
+
+@media (max-width: 768dp) {
+    body {
+        padding: 16dp;
+    }
+    window {
+        box-shadow: inset 0 1dp 0 0 rgba(255, 255, 255, 30%), inset 0 -10dp 24dp 0 rgba(5, 11, 26, 35%);
+    }
+    window.modal {
+        width: 100%;
+        max-width: 100%;
+    }
+}
+
+/* ---- Tab bar inside a window (5.9) ---- */
+
+window tab-bar {
+    flex: 0 0 var(--toolbar-height);
+    height: var(--toolbar-height);
+    padding: 0 8dp;
+    background-color: rgba(var(--color-neutral-rgb), 7%);
+    border-bottom-width: 1dp;
+    border-bottom-color: rgba(var(--color-border-rgb), 35%);
+    font-family: var(--font-family-heading);
+    font-weight: 600;
+    font-size: var(--font-size-xl);
+}
+
+/* ---- Content and panes (5.10) ---- */
+
+window content {
+    display: flex;
+    flex: 1 1 auto;
+    min-width: 0;
+    min-height: 0;
+    overflow: hidden;
+}
+
+/* The left pane holds controls. Scroll containers keep room for a focus ring at their edge. */
+window content pane {
+    display: flex;
+    flex-flow: column;
+    flex: 1 1 0;
+    min-width: 0;
+    min-height: 0;
+    padding: 20dp 20dp 20dp 24dp;
+    gap: 6dp;
+    overflow: hidden auto;
+    font-size: var(--font-size-lg);
+    line-height: 1.4;
+    opacity: 1;
+    animation: 0.16s cubic-out 1 pane-in;
+}
+
+@keyframes pane-in {
+    from { opacity: 0; transform: translateY(8dp); }
+    to { opacity: 1; transform: translateY(0dp); }
+}
+
+window content pane > * {
+    flex: 0 0 auto;
+}
+
+/* The help pane: the last of two or more panes. */
+window content pane:last-of-type:not(:first-of-type) {
+    flex: 0 0 34%;
+    padding: 24dp;
+    gap: 10dp;
+    background-color: rgba(var(--color-control-rgb), 30%);
+    border-left-width: 1dp;
+    border-left-color: rgba(var(--color-border-rgb), 25%);
+    color: var(--text-value);
+    animation: none;
+}
+
+window content pane:last-of-type:not(:first-of-type) > div,
+window content pane:last-of-type:not(:first-of-type) > p {
+    line-height: 1.45;
+}
+
+/* Help pane parts: <help-title/>, body text, <help-default/>, <help-badge class="restart"/>. */
+help-title {
+    display: block;
+    font-family: var(--font-family-heading);
+    font-weight: 600;
+    font-size: var(--font-size-3xl);
+    line-height: 1.25;
+    color: var(--color-text);
+}
+
+help-default {
+    display: block;
+    font-size: var(--font-size-sm);
+    color: var(--text-tertiary);
+}
+
+/* Inline content (an icon, then text), so plain text nodes work inside it. */
+help-badge {
+    display: inline-block;
+    height: 28dp;
+    padding: 0 12dp 0 8dp;
+    border-radius: 14dp;
+    font-family: var(--font-family-heading);
+    font-weight: 600;
+    font-size: var(--font-size-xs);
+    line-height: 28dp;
+    color: var(--color-sun);
+    background-color: rgba(var(--color-sun-rgb), 14%);
+    box-shadow: 0 0 0 1dp rgba(255, 210, 63, 45%);
+}
+
+help-badge icon {
+    margin-right: 6dp;
+    font-size: 16dp;
+}
+
+help-badge.experimental {
+    color: var(--color-pik-purple-hi);
+    background-color: rgba(138, 79, 201, 18%);
+    box-shadow: 0 0 0 1dp rgba(183, 139, 234, 50%);
+}
+
+help-badge.locked {
+    color: var(--color-muted);
+    background-color: rgba(159, 180, 204, 12%);
+    box-shadow: 0 0 0 1dp rgba(159, 180, 204, 40%);
+}
+
+/* Section heading: the only uppercase text in the UI. */
+section-heading {
+    display: block;
+    margin: 14dp 6dp 2dp;
+    padding-bottom: 4dp;
+    border-bottom-width: 1dp;
+    border-bottom-color: rgba(var(--color-border-rgb), 18%);
+    font-family: var(--font-family-heading);
+    font-weight: 600;
+    font-size: var(--font-size-xs);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-tertiary);
+}
+
+section-heading:first-child {
+    margin-top: 2dp;
+}
+
+/* Restart banner: pinned to the window's bottom edge when a restart-only setting changed.
+ * <restart-banner><icon class="restart"/><span>...</span><button class="confirm compact"/></restart-banner> */
+restart-banner {
+    display: flex;
+    flex: 0 0 auto;
+    align-items: center;
+    gap: 12dp;
+    min-height: 52dp;
+    padding: 6dp 16dp 6dp 22dp;
+    background-color: rgba(var(--color-sun-rgb), 14%);
+    border-top-width: 1dp;
+    border-top-color: rgba(var(--color-sun-rgb), 45%);
+    font-family: var(--font-family-body);
+    font-weight: 700;
+    font-size: var(--font-size-md);
+    color: var(--color-text);
+}
+
+restart-banner icon {
+    font-size: 22dp;
+    color: var(--color-sun);
+}
+
+restart-banner span {
+    flex: 1 1 auto;
+}
+
+/* ---- Lists ---- */
+
+ui-list {
+    display: flex;
+    flex-flow: column;
+    flex: 1 1 0;
+    min-width: 0;
+    min-height: 0;
+}
+
+window content pane > ui-list,
+modal-content pane > ui-list {
+    flex: 1 1 0;
+    min-width: 0;
+    min-height: 0;
+}
+
+ui-list-viewport {
+    display: block;
+    flex: 1 1 0;
+    min-width: 0;
+    min-height: 0;
+    overflow: hidden auto;
+}
+
+ui-list-content {
+    display: flex;
+    flex-flow: column;
+    gap: 6dp;
+    min-width: 0;
+}
+
+ui-list-content > button.ui-list-row {
+    flex: 0 0 auto;
+    contain: paint;
+}
+
+ui-list-empty {
+    display: block;
+    padding: 16dp;
+    text-align: center;
+    color: var(--text-tertiary);
+}
+
+window content pane > ui-list {
+    margin-left: -24dp;
+    margin-right: -20dp;
+}
+
+window content pane > ui-list:first-child {
+    margin-top: -20dp;
+}
+
+window content pane > ui-list:last-child {
+    margin-bottom: -20dp;
+}
+
+window content pane > ui-list ui-list-content,
+window content pane > ui-list ui-list-empty {
+    padding-left: 24dp;
+    padding-right: 20dp;
+}
+
+window content pane > ui-list:first-child ui-list-content,
+window content pane > ui-list:first-child ui-list-empty {
+    padding-top: 20dp;
+}
+
+window content pane > ui-list:last-child ui-list-content,
+window content pane > ui-list:last-child ui-list-empty {
+    padding-bottom: 20dp;
+}
+
+scrollbarhorizontal {
+    height: 0;
+}
+
+scrollbarhorizontal sliderarrowdec,
+scrollbarhorizontal sliderarrowinc,
+scrollbarhorizontal slidertrack,
+scrollbarhorizontal sliderbar {
+    width: 0;
+    height: 0;
+}
+
+window progress {
+    margin: 6dp 0 2dp 0;
+}
+
+/* ---- First-run preset (SETTINGS.md 12): two choices side by side ---- */
+
+preset-grid {
+    display: flex;
+    flex-direction: row;
+    gap: 20dp;
+    flex: 0 1 auto;
+    align-items: flex-start;
+    width: 100%;
+}
+
+preset-option {
+    display: flex;
+    flex-flow: column;
+    gap: 12dp;
+    flex: 1 1 0;
+}
+
+preset-description {
+    display: block;
+    font-size: var(--font-size-md);
+    line-height: 1.4;
+    text-align: center;
+    color: var(--text-secondary);
+}
+
+/* ---- Modal (5.11) ---- */
+
+modal-dialog {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    padding: 24dp 28dp 24dp;
+    gap: 16dp;
+    flex: 0 1 auto;
+    min-height: 0;
+    width: 100%;
+    overflow: hidden;
+    text-align: left;
+}
+
+/* Header: an orb with the icon, then the title. The icon follows the title in the DOM and RmlUi
+ * has no `order`, so the row runs reversed and packs to the left. */
+modal-header {
+    display: flex;
+    flex-direction: row-reverse;
+    justify-content: flex-end;
+    align-items: center;
+    width: 100%;
+    flex: 0 0 auto;
+    gap: 14dp;
+}
+
+modal-header icon {
+    display: block;
+    flex: 0 0 44dp;
+    width: 44dp;
+    height: 44dp;
+    border-radius: 22dp;
+    font-size: 24dp;
+    color: var(--color-info);
+    background-color: rgba(var(--color-info-rgb), 22%);
+    box-shadow: var(--shadow-orb), 0 0 0 2dp rgba(90, 184, 255, 45%);
+}
+
+modal-title {
+    display: block;
+    flex: 1 1 auto;
+    font-family: var(--font-family-heading);
+    font-weight: 600;
+    font-size: var(--font-size-4xl);
+    line-height: 1.25;
+    color: var(--color-text);
+}
+
+window.modal.danger modal-title {
+    color: var(--color-danger-heading);
+}
+
+window.modal.danger modal-header icon {
+    color: var(--color-error);
+    background-color: rgba(var(--color-error-rgb), 22%);
+    box-shadow: var(--shadow-orb), 0 0 0 2dp rgba(255, 92, 108, 50%);
+}
+
+modal-body {
+    display: block;
+    width: 100%;
+    flex: 0 0 auto;
+    min-width: 0;
+    font-family: var(--font-family-body);
+    font-weight: 600;
+    font-size: var(--font-size-md);
+    line-height: 1.45;
+    color: var(--text-value);
+}
+
+modal-body modal-tip {
+    display: block;
+    margin-top: 8dp;
+    font-size: var(--font-size-sm);
+    color: var(--text-secondary);
+}
+
+modal-content {
+    display: none;
+    width: 100%;
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow: hidden;
+}
+
+modal-content.active {
+    display: flex;
+    flex-direction: column;
+}
+
+modal-content pane {
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
+    min-height: 0;
+    width: 100%;
+    gap: 6dp;
+    padding: 6dp;
+    overflow: hidden auto;
+}
+
+modal-content pane > * {
+    flex: 0 0 auto;
+}
+
+verification-progress {
+    display: flex;
+    flex-direction: column;
+    gap: 10dp;
+    width: 100%;
+}
+
+verification-progress file-path {
+    font-size: var(--font-size-md);
+    color: var(--color-text);
+}
+
+verification-progress progress {
+    margin: 2dp 0 0 0;
+}
+
+/* Actions: right-aligned; the affirmative button is last and carries the primary fill. */
+modal-actions {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    justify-content: flex-end;
+    align-items: center;
+    gap: 10dp;
+    width: 100%;
+    flex: 0 0 auto;
+    padding-top: 4dp;
+}
+
+button.modal-btn {
+    flex: 0 0 auto;
+    min-width: 120dp;
+}
+
+modal-actions button.modal-btn:last-child {
+    color: #FFFFFF;
+    background-color: var(--color-brand-fill);
+    decorator: linear-gradient(180deg, #E63C66 0%, #C8284F 100%);
+    box-shadow: 0 0 0 1dp rgba(255, 255, 255, 22%), inset 0 1dp 0 0 rgba(255, 255, 255, 35%), 0 4dp 14dp 0 rgba(200, 40, 79, 45%);
+}
+
+modal-actions button.modal-btn:last-child:hover {
+    decorator: linear-gradient(180deg, #F0496E 0%, #D43460 100%);
+    box-shadow: 0 0 0 1dp rgba(255, 255, 255, 45%), inset 0 1dp 0 0 rgba(255, 255, 255, 35%);
+}
+
+modal-actions button.modal-btn:last-child:focus-visible {
+    decorator: linear-gradient(180deg, #F0496E 0%, #D43460 100%);
+    box-shadow: var(--shadow-focus);
+}
+
+/* In a danger modal the affirmative button is the danger one. */
+window.modal.danger modal-actions button.modal-btn:last-child {
+    color: var(--color-error-text);
+    background-color: var(--button-background);
+    decorator: none;
+    box-shadow: 0 0 0 1dp rgba(255, 92, 108, 55%);
+}
+
+window.modal.danger modal-actions button.modal-btn:last-child:hover {
+    background-color: rgba(var(--color-error-rgb), 12%);
+    box-shadow: 0 0 0 1dp rgb(255, 92, 108);
+}
+
+window.modal.danger modal-actions button.modal-btn:last-child:focus-visible {
+    background-color: rgba(var(--color-error-rgb), 18%);
+    box-shadow: 0 0 0 2dp rgb(255, 92, 108);
+}
+
+window.modal.danger modal-actions button.modal-btn:last-child:focus-visible {
+    box-shadow: 0 0 0 2dp rgb(255, 92, 108), 0 0 0 4dp rgba(5, 11, 26, 85%), 0 0 16dp 3dp rgba(255, 92, 108, 45%);
+}
+
+modal-actions icon {
+    margin-right: 4dp;
+}
+
+modal-actions.vertical {
+    flex-direction: column;
+    align-items: stretch;
+}
+
+modal-actions.vertical button.modal-btn {
+    flex: 0 0 auto;
+    width: 100%;
+}
+
+@media (max-height: 640dp) {
+    modal-dialog {
+        padding: 16dp;
+        gap: 12dp;
+    }
+
+    modal-body {
+        font-size: var(--font-size-base);
+    }
+}
+
+@media (max-width: 640dp) {
+    modal-actions {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    modal-actions button.modal-btn {
+        flex: 0 0 auto;
+        width: 100%;
+    }
+}
+
+/* Reduce motion: windows fade in place (the universal rule in global.rcss already drops the
+ * transform transition; these keep the panes still too). */
+body.reduce-motion.reduce-motion.reduce-motion.reduce-motion window {
+    transform: none;
+}
+
+body.reduce-motion.reduce-motion.reduce-motion.reduce-motion window content pane {
+    animation: none;
+}
+
+/* High contrast: a solid 2dp text-coloured rim, no blur. */
+body.high-contrast.high-contrast.high-contrast.high-contrast window {
+    backdrop-filter: none;
+    decorator: none;
+}
+
+body.high-contrast.high-contrast.high-contrast.high-contrast window.modal {
+    background-color: rgb(11, 23, 48);
+}

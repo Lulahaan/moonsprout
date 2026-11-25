@@ -1,0 +1,78 @@
+diff --git a/lib/dolphin/vi/vi.cpp b/lib/dolphin/vi/vi.cpp
+index 4c8dddc..22e4ce6 100644
+--- a/lib/dolphin/vi/vi.cpp
++++ b/lib/dolphin/vi/vi.cpp
+@@ -52,4 +52,8 @@ void VISetWindowSize(uint32_t width, uint32_t height) { aurora::window::set_wind
+ void VISetWindowPosition(uint32_t x, uint32_t y) { aurora::window::set_window_position(x, y); }
+ void VICenterWindow() { aurora::window::center_window(); }
+ void VISetFrameBufferScale(float scale) { aurora::window::set_frame_buffer_scale(scale); }
++void VILockAspectRatio(int width, int height) {
++  aurora::window::set_frame_buffer_locked_aspect(width > 0 && height > 0 ? static_cast<float>(width) / height : 0.f);
++}
++void VIUnlockAspectRatio() { aurora::window::set_frame_buffer_locked_aspect(0.f); }
+ }
+diff --git a/lib/window.cpp b/lib/window.cpp
+index 2a4aadf..010915d 100644
+--- a/lib/window.cpp
++++ b/lib/window.cpp
+@@ -45,6 +45,8 @@ SDL_Window* g_window;
+ SDL_Renderer* g_renderer;
+ float g_frameBufferScale = 0.f;
+ bool g_frameBufferAspectFit = false;
++// VILockAspectRatio: aspect (width / height) the content framebuffer is held to, 0 = follow the window.
++float g_lockedAspect = 0.f;
+ AuroraWindowSize g_windowSize;
+ std::vector<AuroraEvent> g_events;
+ std::deque<std::string> g_eventStrings;
+@@ -454,13 +456,19 @@ AuroraWindowSize get_window_size() {
+ 
+   int fb_w = native_fb_w;
+   int fb_h = native_fb_h;
++  // A locked aspect replaces the window's shape; presentation centres the result with bars.
++  const float targetAspect =
++      g_lockedAspect > 0.f ? g_lockedAspect : static_cast<float>(fb_w) / static_cast<float>(std::max(fb_h, 1));
+   if (g_frameBufferScale > 0.f) {
+     const auto [baseW, baseH] = vi::configured_fb_size();
+-    const auto [scaledW, scaledH] =
+-        scale_frame_buffer_to_aspect(static_cast<int>(baseW), static_cast<int>(baseH), g_frameBufferScale,
+-                                     static_cast<float>(fb_w) / static_cast<float>(fb_h));
++    const auto [scaledW, scaledH] = scale_frame_buffer_to_aspect(static_cast<int>(baseW), static_cast<int>(baseH),
++                                                                 g_frameBufferScale, targetAspect);
+     fb_w = scaledW;
+     fb_h = scaledH;
++  } else if (g_lockedAspect > 0.f) {
++    const auto [fitW, fitH] = fit_frame_buffer_to_aspect(fb_w, fb_h, g_lockedAspect);
++    fb_w = fitW;
++    fb_h = fitH;
+   }
+   if (g_frameBufferAspectFit) {
+     const auto [baseW, baseH] = vi::configured_fb_size();
+@@ -578,6 +586,17 @@ void set_frame_buffer_scale(float scale) {
+   request_frame_buffer_resize();
+ }
+ 
++void set_frame_buffer_locked_aspect(float aspect) {
++  if (!(aspect > 0.f)) {
++    aspect = 0.f;
++  }
++  if (g_lockedAspect == aspect) {
++    return;
++  }
++  g_lockedAspect = aspect;
++  request_frame_buffer_resize();
++}
++
+ void set_frame_buffer_aspect_fit(bool fit) {
+   if (g_frameBufferAspectFit == fit) {
+     return;
+diff --git a/lib/window.hpp b/lib/window.hpp
+index 51257ea..215b23c 100644
+--- a/lib/window.hpp
++++ b/lib/window.hpp
+@@ -50,5 +50,6 @@ void center_window();
+ void request_frame_buffer_resize();
+ void set_frame_buffer_scale(float scale);
+ void set_frame_buffer_aspect_fit(bool fit);
++void set_frame_buffer_locked_aspect(float aspect); // 0 = unlocked
+ void set_background_input(bool value);
+ }; // namespace aurora::window

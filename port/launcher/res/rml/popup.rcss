@@ -1,0 +1,156 @@
+/*
+ * The in-game bar (DESIGN.md 8): a glass pill floating 16dp under the top edge, centred by the
+ * body's flex row, holding the entry registry as tabs (SETTINGS.md 13). Bar DOM:
+ *   <popup><mark class="orb"><leaf.l/><leaf.r/></mark><tab-bar>...</tab-bar><divider/>
+ *          <bar-status>...</bar-status></popup>
+ * Every part besides `popup` and its `tab-bar` is optional. The bar is hidden on the
+ * `transitionend` of its transform, which reduce motion swaps for an opacity fade.
+ */
+body {
+    overflow: visible;
+    width: 100%;
+    height: 100%;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    font-family: var(--font-family-heading);
+    font-weight: 600;
+    font-size: var(--font-size-xl);
+    color: var(--color-text);
+}
+
+button {
+    cursor: pointer;
+    focus: auto;
+}
+
+popup {
+    display: flex;
+    flex: 0 0 auto;
+    align-items: center;
+    max-width: 96%;
+    height: var(--toolbar-height);
+    margin-top: 16dp;
+    padding: 0 10dp;
+    gap: 4dp;
+    border-radius: 32dp;
+    border-width: 2dp;
+    border-color: var(--rim-color);
+    background-color: var(--surface-bar);
+    decorator: var(--surface-shine);
+    backdrop-filter: var(--blur-bar);
+    box-shadow: 0 10dp 28dp 0 rgba(5, 11, 26, 55%), inset 0 1dp 0 0 rgba(255, 255, 255, 30%);
+    transform: translateY(var(--toolbar-hidden-offset));
+    transition: transform 0.18s cubic-in;
+}
+
+popup[open] {
+    transform: translateY(0dp);
+    transition: transform 0.26s back-out;
+}
+
+popup tab-bar {
+    flex: 0 1 auto;
+    height: var(--toolbar-height);
+}
+
+popup tab-bar tab {
+    padding: 0 18dp;
+    color: rgba(var(--color-text-rgb), 70%);
+}
+
+/* The mark: an orb with the sprout. Not focusable. */
+popup mark {
+    position: relative;
+    flex: 0 0 40dp;
+    width: 40dp;
+    height: 40dp;
+    margin-right: 4dp;
+    pointer-events: none;
+}
+
+popup mark leaf {
+    top: 12dp;
+    width: 11dp;
+    height: 11dp;
+}
+
+popup mark leaf.l { left: 9dp; }
+popup mark leaf.r { left: 20dp; }
+
+popup divider {
+    display: block;
+    flex: 0 0 1dp;
+    width: 1dp;
+    height: 28dp;
+    margin: 0 8dp;
+    background-color: rgba(var(--color-border-rgb), 30%);
+}
+
+popup bar-status {
+    display: flex;
+    flex: 0 0 auto;
+    align-items: center;
+    gap: 14dp;
+    padding: 0 10dp 0 4dp;
+    font-family: var(--font-family-monospace);
+    font-size: var(--font-size-xs);
+    color: var(--color-muted);
+    white-space: nowrap;
+}
+
+/* A small "Paused" tag under the bar while the game is actually paused (DESIGN 8.2). It slides in
+ * with the bar and fades; the C++ sets [open]. */
+paused-tag {
+    display: block;
+    flex: 0 0 auto;
+    margin-top: 10dp;
+    height: 30dp;
+    padding: 0 14dp;
+    border-radius: 15dp;
+    border-width: 1dp;
+    border-color: rgba(var(--color-border-rgb), 50%);
+    background-color: var(--surface-bar);
+    font-family: var(--font-family-heading);
+    font-weight: 600;
+    font-size: var(--font-size-base);
+    line-height: 28dp;
+    color: var(--color-text);
+    backdrop-filter: var(--blur-bar);
+    box-shadow: 0 6dp 16dp 0 rgba(5, 11, 26, 45%), inset 0 1dp 0 0 rgba(255, 255, 255, 25%);
+    pointer-events: none;
+    visibility: hidden; /* its backdrop blur would still draw at opacity 0 */
+    opacity: 0;
+    transform: translateY(var(--toolbar-hidden-offset));
+    transition: transform 0.18s cubic-in, opacity 0.18s cubic-in;
+}
+
+paused-tag[open] {
+    visibility: visible;
+    opacity: 1;
+    transform: translateY(0dp);
+    transition: transform 0.26s back-out, opacity 0.2s cubic-out;
+}
+
+/* ---- Accessibility ---- */
+
+body.reduce-motion.reduce-motion.reduce-motion.reduce-motion popup {
+    transform: none;
+    opacity: 0;
+}
+
+body.reduce-motion.reduce-motion.reduce-motion.reduce-motion popup[open] {
+    opacity: 1;
+}
+
+body.reduce-motion.reduce-motion.reduce-motion.reduce-motion paused-tag {
+    transform: none;
+}
+
+body.high-contrast.high-contrast.high-contrast.high-contrast popup,
+body.high-contrast.high-contrast.high-contrast.high-contrast paused-tag {
+    decorator: none;
+    backdrop-filter: none;
+}

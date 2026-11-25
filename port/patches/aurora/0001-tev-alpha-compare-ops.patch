@@ -1,0 +1,66 @@
+diff --git a/lib/gx/shader.cpp b/lib/gx/shader.cpp
+index 9dfbdac..d23e3ee 100644
+--- a/lib/gx/shader.cpp
++++ b/lib/gx/shader.cpp
+@@ -411,8 +411,32 @@ std::string tev_color_op(GXTevOp op, std::string_view bias, std::string_view sca
+ }
+ 
+ std::string tev_alpha_op(GXTevOp op, std::string_view bias, std::string_view scale, bool clamp, std::string_view a,
+-                         std::string_view b, std::string_view c, std::string_view d) {
+-  std::string expr = tev_op(op, bias, scale, a, b, c, d, "0.0"sv);
++                         std::string_view b, std::string_view c, std::string_view d, std::string_view colorA,
++                         std::string_view colorB) {
++  std::string expr;
++  switch (op) {
++  // In the alpha combiner the R8/GR16/BGR24 compares look at the stage's colour A/B inputs;
++  // only the A8 modes (op 14/15) compare the alpha inputs.
++  case GX_TEV_COMP_R8_GT:
++  case GX_TEV_COMP_R8_EQ:
++  case GX_TEV_COMP_GR16_GT:
++  case GX_TEV_COMP_GR16_EQ:
++  case GX_TEV_COMP_BGR24_GT:
++  case GX_TEV_COMP_BGR24_EQ: {
++    std::string full = tev_op(op, bias, scale, colorA, colorB, "1.0"sv, "0.0"sv, "0.0"sv);
++    expr = fmt::format("({0}) * {1} + {2}", full, c, d);
++    break;
++  }
++  case GX_TEV_COMP_A8_GT:
++    expr = fmt::format("select(0.0, {2}, round({0} * 255.0) > round({1} * 255.0)) + {3}", a, b, c, d);
++    break;
++  case GX_TEV_COMP_A8_EQ:
++    expr = fmt::format("select(0.0, {2}, round({0} * 255.0) == round({1} * 255.0)) + {3}", a, b, c, d);
++    break;
++  default:
++    expr = tev_op(op, bias, scale, a, b, c, d, "0.0"sv);
++    break;
++  }
+   return clamp ? fmt::format("clamp({}, 0.0, 1.0)", expr) : fmt::format("clamp({}, -4.0, 4.0)", expr);
+ }
+ 
+@@ -1091,10 +1115,14 @@ std::string build_shader_source(const ShaderConfig& config, DstAlphaMode dstAlph
+         return fmt::format("tev_overflow_vec3f({})", value);
+       };
+       std::string_view outReg = regName[stage.colorOp.outReg];
++      // Latch this stage's colour A/B inputs: alpha compare ops read them, and they must not see
++      // the colour result written below.
++      fragmentFn += fmt::format("\n    // TEV stage {2}\n    let tevColorA{2} = {0};\n    let tevColorB{2} = {1};",
++                                color_arg(stage.colorPass.a), color_arg(stage.colorPass.b), idx);
+       std::string op = tev_color_op(stage.colorOp.op, tev_bias(stage.colorOp.bias), tev_scale(stage.colorOp.scale),
+-                                    stage.colorOp.clamp, color_arg(stage.colorPass.a), color_arg(stage.colorPass.b),
++                                    stage.colorOp.clamp, fmt::format("tevColorA{}", idx), fmt::format("tevColorB{}", idx),
+                                     color_arg(stage.colorPass.c), color_arg_reg(stage.colorPass.d, idx, config, stage));
+-      fragmentFn += fmt::format("\n    // TEV stage {2}\n    {0} = vec4f({1}, {0}.a);", outReg, op, idx);
++      fragmentFn += fmt::format("\n    {0} = vec4f({1}, {0}.a);", outReg, op);
+       colorNormalized[stage.colorOp.outReg] = stage.colorOp.clamp;
+     }
+     {
+@@ -1108,7 +1136,8 @@ std::string build_shader_source(const ShaderConfig& config, DstAlphaMode dstAlph
+       std::string_view outReg = regName[stage.alphaOp.outReg];
+       std::string op = tev_alpha_op(stage.alphaOp.op, tev_bias(stage.alphaOp.bias), tev_scale(stage.alphaOp.scale),
+                                     stage.alphaOp.clamp, alpha_arg(stage.alphaPass.a), alpha_arg(stage.alphaPass.b),
+-                                    alpha_arg(stage.alphaPass.c), alpha_arg_reg(stage.alphaPass.d, idx, config, stage));
++                                    alpha_arg(stage.alphaPass.c), alpha_arg_reg(stage.alphaPass.d, idx, config, stage),
++                                    fmt::format("tevColorA{}", idx), fmt::format("tevColorB{}", idx));
+       fragmentFn += fmt::format("\n    {0}.a = {1};", outReg, op);
+       alphaNormalized[stage.alphaOp.outReg] = stage.alphaOp.clamp;
+     }

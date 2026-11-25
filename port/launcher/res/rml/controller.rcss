@@ -1,0 +1,480 @@
+/* Controller window (port/launcher/controller_config.cpp, docs/launcher/SETTINGS.md 8).
+   Three columns: pages, the open page, and an info column with an abstract controller diagram.
+   Colours outside the shared tokens are the DESIGN.md palette, written out so this sheet reads the
+   same with any theme.rcss. */
+
+/* ---- columns ---------------------------------------------------------------------------------- */
+
+window.controller-config content pane.pages {
+    flex: 0 0 30%;
+}
+
+window.controller-config content pane.page {
+    flex: 1 1 0;
+}
+
+window.controller-config content pane.info {
+    flex: 0 0 300dp;
+    align-items: center;
+    gap: var(--space-sm);
+    padding: var(--space-xl) 20dp;
+    overflow: hidden;
+    background-color: rgba(var(--color-control-rgb), 30%);
+}
+
+/* The diagram needs room; narrow windows keep just the two working columns. */
+@media (max-width: 1040dp) {
+    window.controller-config content pane.info {
+        display: none;
+    }
+    window.controller-config content pane.page {
+        border-right-width: 0;
+    }
+    /* Without the diagram the page list can take more room, so "Keyboard" and its switch fit. */
+    window.controller-config content pane.pages {
+        flex: 0 0 38%;
+    }
+}
+
+window.controller-config section-heading {
+    font-size: var(--font-size-md);
+    opacity: 0.55;
+}
+
+.port-note {
+    padding: 10dp 14dp;
+    border-radius: 12dp;
+    background-color: rgba(255, 210, 63, 12%);
+    box-shadow: rgba(255, 210, 63, 40%) 0 0 0 1dp;
+    color: #FFE9A6;
+    font-size: var(--font-size-md);
+}
+
+.page-note {
+    padding: var(--space-xs) 6dp;
+    font-size: var(--font-size-lg);
+    line-height: 1.5;
+    color: rgba(var(--color-text-rgb), 70%);
+}
+
+button.restore-defaults {
+    margin-top: var(--space-md);
+    box-shadow: rgba(255, 92, 108, 45%) 0 0 0 1dp;
+}
+
+/* ---- device list ------------------------------------------------------------------------------ */
+
+button.device-option {
+    display: flex;
+    flex-flow: column;
+    align-items: flex-start;
+    gap: var(--space-2xs);
+    padding: 10dp 18dp;
+    text-align: left;
+}
+
+device-name {
+    display: block;
+    font-size: var(--font-size-xl);
+}
+
+device-tags {
+    display: flex;
+    flex-flow: row wrap;
+    gap: 6dp;
+}
+
+device-tags:empty {
+    display: none;
+}
+
+device-tag {
+    display: flex;
+    align-items: center;
+    gap: var(--space-xs);
+    padding: 1dp 9dp;
+    border-radius: 999dp;
+    background-color: rgba(var(--color-interactive-rgb), 14%);
+    font-size: var(--font-size-sm);
+    color: rgba(var(--color-text-rgb), 75%);
+}
+
+device-tag.owner {
+    color: #FFD23F;
+    background-color: rgba(255, 210, 63, 14%);
+}
+
+device-tag icon {
+    font-family: var(--font-family-icons);
+    font-weight: normal;
+    font-size: 16dp;
+    line-height: 1;
+}
+
+/* ---- binding rows ----------------------------------------------------------------------------- */
+
+select-button.binding-row {
+    min-height: 52dp;
+    padding: 6dp 14dp 6dp 10dp;
+    gap: var(--space-md);
+}
+
+binding-label {
+    display: flex;
+    flex-flow: column;
+    flex: 1 1 0;
+    min-width: 0;
+}
+
+select-button.binding-row binding-label key {
+    flex: 0 0 auto;
+}
+
+binding-hint {
+    display: block;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: var(--font-size-sm);
+    color: rgba(var(--color-text-rgb), 60%);
+}
+
+/* RmlUi sizes an overflow-hidden flex item with an auto basis to nothing: let the value keep its
+   natural width (bound inputs are short) and let the label column give way instead. */
+select-button.binding-row value {
+    flex: 0 0 auto;
+    overflow: visible;
+}
+
+select-button.binding-row value.unbound {
+    color: rgba(var(--color-text-rgb), 45%);
+}
+
+select-button.binding-row.capturing {
+    background-color: rgba(140, 224, 74, 14%);
+    box-shadow: #8CE04A 0 0 0 2dp;
+}
+
+select-button.binding-row.capturing value {
+    color: #B9F27C;
+    animation: 0.7s sine-in-out infinite alternate capture-pulse;
+}
+
+@keyframes capture-pulse {
+    from { opacity: 1; }
+    to { opacity: 0.55; }
+}
+
+capture-ring {
+    display: none;
+    flex: 0 0 20dp;
+    width: 20dp;
+    height: 20dp;
+    border-radius: 10dp;
+}
+
+select-button.binding-row.capturing capture-ring {
+    display: block;
+}
+
+/* GameCube-style glyph in front of each row: colour and shape follow the real buttons loosely. */
+pad-glyph {
+    display: block;
+    flex: 0 0 30dp;
+    width: 30dp;
+    height: 30dp;
+    border-radius: 15dp;
+    background-color: #C9D6E6;
+    color: #0A1A0C;
+    font-family: var(--font-family-heading);
+    font-weight: bold;
+    font-size: 15dp;
+    line-height: 30dp;
+    text-align: center;
+}
+
+pad-glyph.icon-glyph {
+    font-family: var(--font-family-icons);
+    font-weight: normal;
+    font-size: 20dp;
+}
+
+pad-glyph.glyph-a { background-color: #3FCB7E; }
+pad-glyph.glyph-b { background-color: #F05A4F; color: #FFFFFF; }
+pad-glyph.glyph-z { background-color: #8A4FC9; color: #FFFFFF; border-radius: 9dp; }
+pad-glyph.glyph-l,
+pad-glyph.glyph-r,
+pad-glyph.glyph-dpad { border-radius: 8dp; }
+pad-glyph.glyph-cstick { background-color: #FFD23F; }
+
+pad-glyph.glyph-start {
+    flex: 0 0 18dp;
+    width: 18dp;
+    height: 18dp;
+    margin: 0 6dp;
+    border-radius: 9dp;
+}
+
+/* ---- info column ------------------------------------------------------------------------------ */
+
+info-title {
+    display: block;
+    font-family: var(--font-family-heading);
+    font-weight: bold;
+    font-size: var(--font-size-3xl);
+    text-align: center;
+}
+
+info-text {
+    display: block;
+    font-size: var(--font-size-lg);
+    line-height: 1.45;
+    text-align: center;
+    color: rgba(var(--color-text-rgb), 85%);
+}
+
+info-note {
+    display: block;
+    font-size: var(--font-size-sm);
+    line-height: 1.45;
+    text-align: center;
+    color: rgba(var(--color-text-rgb), 55%);
+}
+
+info-notice {
+    display: block;
+    margin-top: var(--space-sm);
+    padding: var(--space-sm) var(--space-md);
+    border-radius: 12dp;
+    background-color: rgba(255, 210, 63, 14%);
+    box-shadow: rgba(255, 210, 63, 45%) 0 0 0 1dp;
+    color: #FFE9A6;
+    font-size: var(--font-size-md);
+    text-align: center;
+    opacity: 0;
+    transition: opacity 0.2s cubic-out;
+}
+
+info-notice.shown {
+    opacity: 1;
+}
+
+/* ---- controller diagram (abstract shapes, no artwork) ----------------------------------------- */
+
+pad-diagram {
+    display: block;
+    position: relative;
+    flex: 0 0 172dp;
+    width: 260dp;
+    height: 172dp;
+    margin-top: 8dp;
+    margin-bottom: var(--space-sm);
+}
+
+pad-diagram.rumbling {
+    animation: 0.1s linear-in-out infinite alternate pad-rumble;
+}
+
+@keyframes pad-rumble {
+    from { transform: translateX(-2dp) rotate(-1deg); }
+    to { transform: translateX(2dp) rotate(1deg); }
+}
+
+/* The silhouette is one image (art/pad.svg -> res/img/pad.png at 3x); the buttons sit on it as
+   elements so they can light up. Every position below is in the 260x172 frame of that drawing. */
+img.pad-shell {
+    position: absolute;
+    display: block;
+    left: 0;
+    top: 0;
+    width: 260dp;
+    height: 172dp;
+}
+
+pad-part {
+    position: absolute;
+    display: block;
+    box-sizing: border-box;
+    background-color: #C9D6E6;
+    color: #0A1A0C;
+    font-family: var(--font-family-heading);
+    font-weight: bold;
+    font-size: 12dp;
+    text-align: center;
+    opacity: 0.92;
+    transition: opacity 0.12s cubic-out, transform 0.2s back-out;
+}
+
+pad-diagram.dimmed pad-part {
+    opacity: 0.3;
+}
+
+pad-diagram.dimmed pad-part.lit {
+    opacity: 1;
+    transform: scale(1.15);
+    box-shadow: #8CE04A 0 0 0 2dp, rgba(140, 224, 74, 55%) 0 0 14dp 3dp;
+}
+
+pad-diagram.capturing pad-part.lit {
+    animation: 0.6s sine-in-out infinite alternate capture-pulse;
+}
+
+/* Shoulders: tucked behind the top edge of the shell (they come before it in the markup). */
+pad-part.shoulder {
+    top: 6dp;
+    width: 60dp;
+    height: 30dp;
+    padding-top: 1dp;
+    border-radius: 12dp 12dp 4dp 4dp;
+    line-height: 17dp;
+    font-size: 11dp;
+    decorator: linear-gradient(180deg, #E4ECF5 0%, #AFC0D6 100%);
+}
+
+pad-part.part-l { left: 40dp; }
+pad-part.part-r { left: 160dp; }
+
+/* Z sits on top of R, centred over it. */
+pad-part.part-z {
+    left: 170dp;
+    top: -9dp;
+    width: 40dp;
+    height: 12dp;
+    border-radius: 6dp;
+    background-color: #8A4FC9;
+    color: #FFFFFF;
+    font-size: 9dp;
+    line-height: 12dp;
+}
+
+pad-part.part-stick {
+    left: 46dp;
+    top: 46dp;
+    width: 40dp;
+    height: 40dp;
+    border-radius: 20dp;
+    border: 2dp #C9D6E6;
+    background-color: rgba(201, 214, 230, 14%);
+}
+
+pad-part.part-cstick {
+    left: 156dp;
+    top: 94dp;
+    width: 28dp;
+    height: 28dp;
+    border-radius: 14dp;
+    border: 2dp #FFD23F;
+    background-color: rgba(255, 210, 63, 14%);
+}
+
+pad-knob {
+    position: absolute;
+    display: block;
+    left: 7dp;
+    top: 7dp;
+    width: 22dp;
+    height: 22dp;
+    border-radius: 11dp;
+    background-color: #C9D6E6;
+    transition: transform 0.2s back-out;
+}
+
+pad-part.part-cstick pad-knob {
+    left: 4dp;
+    top: 4dp;
+    width: 16dp;
+    height: 16dp;
+    border-radius: 8dp;
+    background-color: #FFD23F;
+}
+
+pad-part.part-stick.lean-up pad-knob { transform: translateY(-7dp); }
+pad-part.part-stick.lean-down pad-knob { transform: translateY(7dp); }
+pad-part.part-stick.lean-left pad-knob { transform: translateX(-7dp); }
+pad-part.part-stick.lean-right pad-knob { transform: translateX(7dp); }
+pad-part.part-cstick.lean-up pad-knob { transform: translateY(-4dp); }
+pad-part.part-cstick.lean-down pad-knob { transform: translateY(4dp); }
+pad-part.part-cstick.lean-left pad-knob { transform: translateX(-4dp); }
+pad-part.part-cstick.lean-right pad-knob { transform: translateX(4dp); }
+
+/* Face buttons: A in the middle, B low left, X right and Y above, each clear of the others. */
+pad-part.part-a {
+    left: 164dp;
+    top: 52dp;
+    width: 36dp;
+    height: 36dp;
+    border-radius: 18dp;
+    background-color: #3FCB7E;
+    font-size: 16dp;
+    line-height: 36dp;
+}
+
+pad-part.part-b {
+    left: 139dp;
+    top: 75dp;
+    width: 22dp;
+    height: 22dp;
+    border-radius: 11dp;
+    background-color: #F05A4F;
+    color: #FFFFFF;
+    line-height: 22dp;
+}
+
+pad-part.part-x {
+    left: 205dp;
+    top: 47dp;
+    width: 16dp;
+    height: 30dp;
+    border-radius: 8dp;
+    font-size: 11dp;
+    line-height: 30dp;
+}
+
+pad-part.part-y {
+    left: 165dp;
+    top: 35dp;
+    width: 30dp;
+    height: 14dp;
+    border-radius: 7dp;
+    font-size: 11dp;
+    line-height: 14dp;
+}
+
+pad-part.part-start {
+    left: 118dp;
+    top: 62dp;
+    width: 12dp;
+    height: 12dp;
+    border-radius: 6dp;
+}
+
+pad-part.part-dpad {
+    width: 12dp;
+    height: 12dp;
+    border-radius: 2dp;
+}
+
+pad-part.dpad-center { left: 86dp; top: 98dp; border-radius: 0dp; }
+pad-part.dpad-up { left: 86dp; top: 86dp; border-radius: 3dp 3dp 0dp 0dp; }
+pad-part.dpad-down { left: 86dp; top: 110dp; border-radius: 0dp 0dp 3dp 3dp; }
+pad-part.dpad-left { left: 74dp; top: 98dp; border-radius: 3dp 0dp 0dp 3dp; }
+pad-part.dpad-right { left: 98dp; top: 98dp; border-radius: 0dp 3dp 3dp 0dp; }
+
+/* ---- reduce motion ---------------------------------------------------------------------------- */
+
+body.reduce-motion pad-part,
+body.reduce-motion pad-knob,
+body.reduce-motion info-notice {
+    transition: none;
+}
+
+body.reduce-motion pad-diagram.dimmed pad-part.lit {
+    transform: none;
+}
+
+body.reduce-motion pad-diagram.rumbling,
+body.reduce-motion pad-diagram.capturing pad-part.lit,
+body.reduce-motion select-button.binding-row.capturing value {
+    animation: none;
+}

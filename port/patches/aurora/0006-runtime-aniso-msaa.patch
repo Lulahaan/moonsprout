@@ -1,0 +1,78 @@
+--- a/include/aurora/gfx.h
++++ b/include/aurora/gfx.h
+@@ -32,6 +32,14 @@
+ float aurora_get_fps();
+ 
+ void aurora_enable_vsync(bool enabled);
++/*
++ * Runtime picture settings. Anisotropy (clamped to 1-16) feeds the samplers built from the next
++ * frame on. MSAA is clamped to 1 or 4 (the counts every adapter supports for the frame buffer
++ * format); the new count applies at the next surface refresh, which rebuilds the frame buffers
++ * and drops the caches keyed on the old count.
++ */
++void aurora_set_texture_anisotropy(uint16_t max);
++void aurora_set_msaa(uint32_t samples);
+ 
+ #ifdef __cplusplus
+ }
+--- a/lib/webgpu/gpu.cpp
++++ b/lib/webgpu/gpu.cpp
+@@ -32,6 +32,9 @@
+ 
+ namespace aurora::gx {
+ void clear_copy_texture_cache() noexcept;
++namespace texture {
++void invalidate_bindings() noexcept;
++} // namespace texture
+ } // namespace aurora::gx
+ namespace aurora::gfx {
+ void clear_offscreen_cache();
+@@ -50,6 +53,8 @@
+ TextureWithSampler g_frameBufferResolved;
+ TextureWithSampler g_depthBuffer;
+ TextureWithSampler g_normalBuffer;
++// aurora_set_msaa: the sample count the next refresh_surface switches to (0 = no change asked).
++static std::atomic<uint32_t> g_pendingMsaa{0};
+ 
+ // EFB -> XFB copy pipeline
+ static wgpu::BindGroupLayout g_CopyBindGroupLayout;
+@@ -1179,6 +1184,19 @@
+     nativeWidth = size.native_fb_width;
+     nativeHeight = size.native_fb_height;
+   }
++  if (const uint32_t samples = g_pendingMsaa.exchange(0, std::memory_order_acq_rel);
++      samples != 0 && samples != g_graphicsConfig.msaaSamples) {
++    Log.info("MSAA {}x -> {}x", g_graphicsConfig.msaaSamples, samples);
++    g_graphicsConfig.msaaSamples = samples;
++    // Render targets, pipelines and EFB copies keyed on the old count go; the forced resize below
++    // rebuilds the frame buffers at the new one.
++    gx::clear_copy_texture_cache();
++    gfx::clear_caches();
++    if (samples > 1 && g_graphicsConfig.normalBuffer) {
++      g_normalBuffer = {};
++      g_graphicsConfig.normalBuffer = false;
++    }
++  }
+   if (width != 0 && height != 0) {
+     resize_swapchain_internal(width, height, nativeWidth, nativeHeight, true);
+   }
+@@ -1191,6 +1209,19 @@
+ }
+ } // namespace aurora::webgpu
+ 
++void aurora_set_texture_anisotropy(uint16_t max) {
++  const uint16_t clamped = max < 1 ? 1 : (max > 16 ? 16 : max);
++  if (aurora::webgpu::g_graphicsConfig.textureAnisotropy != clamped) {
++    aurora::webgpu::g_graphicsConfig.textureAnisotropy = clamped;
++    aurora::gx::texture::invalidate_bindings();
++  }
++}
++
++void aurora_set_msaa(uint32_t samples) {
++  aurora::webgpu::g_pendingMsaa.store(samples >= 4 ? 4 : 1, std::memory_order_release);
++  aurora::window::push_custom_event(aurora::window::CustomEvent::RefreshSurface);
++}
++
+ void aurora_enable_vsync(const bool enabled) {
+   aurora::webgpu::g_vsyncEnabled.store(enabled, std::memory_order_release);
+   aurora::webgpu::g_graphicsConfig.surfaceConfiguration.presentMode =

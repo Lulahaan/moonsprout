@@ -1,0 +1,248 @@
+/* Mods window (port/launcher/mods_window.cpp, docs/launcher/SETTINGS.md 17).
+   The Save Manager's layout (saves.rcss): the list on the left (Overview, then the mods in load
+   order), the selected item on the right. Help notes as in settings.rcss, button prompts as on the
+   start menu (DESIGN 5.17). Theme tokens only: no new colours. */
+
+window.mods pane.list {
+    flex: 0 0 340dp;
+}
+
+window.mods pane.list > header {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+    min-height: 44dp;
+    focus: none;
+}
+
+window.mods pane.list > header section-heading {
+    flex: 1 1 0;
+    min-width: 0;
+}
+
+window.mods pane.list > header:not(:first-child) {
+    margin-top: var(--space-lg);
+}
+
+window.mods list-empty {
+    display: block;
+    padding: var(--space-sm) var(--space-lg);
+    font-size: var(--font-size-md);
+    color: rgba(var(--color-text-rgb), 45%);
+}
+
+/* A mod's entry has two lines (SETTINGS 17): its name across the whole row, ending in an ellipsis
+   only where the row is too narrow (very long names are also clipped in C++), and the state word
+   below it in small text, so the state never takes room from the name. */
+window.mods select-button.mod-entry key {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    flex: 1 1 0;
+    white-space: nowrap;
+}
+
+window.mods select-button.mod-entry mod-name {
+    display: block;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    padding-right: 3dp;  /* the ellipsis slack of select-button key (controls.rcss) */
+    margin-right: -3dp;
+}
+
+window.mods select-button.mod-entry mod-state {
+    display: block;
+    white-space: nowrap;
+    font-family: var(--font-family-body);
+    font-weight: 700;
+    font-size: var(--font-size-sm);
+    line-height: 18dp;
+    color: rgba(var(--color-text-rgb), 65%);
+}
+
+window.mods pane.detail {
+    gap: var(--space-md);
+}
+
+window.mods pane.detail section-heading {
+    margin-top: var(--space-md);
+}
+
+window.mods pane.detail > small,
+window.mods mod-conflicts small {
+    display: block;
+}
+
+window.mods p.mods-body {
+    font-size: var(--font-size-lg);
+    line-height: 1.45;
+    color: rgba(var(--color-text-rgb), 85%);
+}
+
+mod-header {
+    display: block;
+}
+
+mod-header heading {
+    font-family: var(--font-family-heading);
+    font-size: var(--font-size-6xl);
+    line-height: 1.2;
+}
+
+/* A name with a long run and no space (an id such as "my-arena-pack-v2") would wrap inside the
+   word in the big font and leave a letter or two on the next line. */
+mod-header heading.long-word {
+    font-size: var(--font-size-3xl);
+}
+
+mod-header small {
+    display: block;
+    margin-top: var(--space-2xs);
+    word-break: break-word;
+}
+
+mod-overview {
+    display: block;
+    padding: 14dp 16dp;
+    border-radius: var(--radius-panel);
+    background-color: rgba(var(--color-control-rgb), 30%);
+    box-shadow: rgba(var(--color-border-rgb), 30%) 0 0 0 1dp;
+}
+
+mod-overview.on {
+    box-shadow: rgba(var(--color-success-rgb), 40%) 0 0 0 1dp;
+}
+
+mod-overview.on heading {
+    color: var(--color-success);
+}
+
+mod-overview.problem {
+    box-shadow: rgba(var(--color-error-rgb), 45%) 0 0 0 1dp;
+}
+
+mod-overview.problem heading {
+    color: var(--color-error-text);
+}
+
+mod-overview small {
+    display: block;
+    margin-top: var(--space-2xs);
+}
+
+mod-overview p {
+    margin-top: var(--space-sm);
+    font-size: var(--font-size-md);
+    line-height: 1.45;
+    color: rgba(var(--color-text-rgb), 85%);
+    word-break: break-word;
+}
+
+mod-conflicts {
+    display: block;
+}
+
+mod-conflicts small {
+    word-break: break-word;
+}
+
+window.mods file-path.mods-hash {
+    font-size: var(--font-size-md);
+    color: var(--color-text);
+}
+
+window.mods button:not(.icon-button) {
+    text-align: left;
+}
+
+/* ---- Help notes (settings.rcss) ---- */
+
+window.mods help-notes,
+window.mods div.mods-notes,
+window.mods div.mods-issues {
+    display: block;
+}
+
+window.mods help-note {
+    display: flex;
+    flex-flow: row;
+    align-items: flex-start;
+    gap: var(--space-sm);
+    margin-top: var(--space-xs);
+    font-size: var(--font-size-md);
+    line-height: 1.4;
+    color: rgba(var(--color-text-rgb), 80%);
+}
+
+window.mods note-icon {
+    display: block;
+    flex: 0 0 auto;
+    font-family: var(--font-family-icons);
+    font-weight: normal;
+    font-size: 20dp;
+    line-height: 1;
+    margin-top: 1dp;
+}
+
+window.mods note-text {
+    display: block;
+    flex: 1 1 auto;
+    min-width: 0;
+    word-break: break-word;
+}
+
+window.mods issue-path {
+    display: block;
+    font-family: var(--font-family-monospace);
+    font-size: var(--font-size-sm);
+    color: var(--text-secondary);
+    word-break: break-all;
+}
+
+window.mods help-note.lock note-icon { color: rgb(var(--color-info-rgb)); }
+window.mods help-note.info note-icon { color: rgb(var(--color-info-rgb)); }
+window.mods help-note.restart note-icon { color: rgba(var(--color-sun-rgb), 70%); }
+window.mods help-note.restart.pending { color: var(--color-sun); }
+window.mods help-note.restart.pending note-icon { color: var(--color-sun); }
+window.mods help-note.warning { color: rgb(var(--color-warning-rgb)); }
+window.mods help-note.warning note-icon { color: rgb(var(--color-warning-rgb)); }
+window.mods help-note.error { color: var(--color-error-text); }
+window.mods help-note.error note-icon { color: rgb(var(--color-error-rgb)); }
+
+/* ---- Button prompts (DESIGN 5.17) ----
+ * The shared <button-prompts> component (global.rcss); this only places the row at the window's
+ * bottom edge. Hidden after a mouse click (mods_window.cpp Prompts). */
+
+button-prompts.mods-prompts {
+    flex: 0 0 auto;
+    justify-content: flex-end;
+    padding: 10dp 24dp 12dp;
+    border-top-width: 1dp;
+    border-top-color: rgba(var(--color-border-rgb), 18%);
+}
+
+button-prompts.mods-prompts.hidden {
+    display: none;
+}
+
+@media (max-width: 720dp) {
+    window.mods pane.list {
+        flex: 0 0 42%;
+    }
+}
+
+@media (max-height: 640dp) {
+    window.mods pane.list {
+        flex: 1 1 0;
+    }
+
+    mod-header heading {
+        font-size: var(--font-size-4xl);
+    }
+
+    button-prompts.mods-prompts {
+        display: none;
+    }
+}

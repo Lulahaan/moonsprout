@@ -1,0 +1,122 @@
+#ifndef _JSYSTEM_J3D_J3DGXCOLOR_H
+#define _JSYSTEM_J3D_J3DGXCOLOR_H
+
+#include "types.h"
+#include "Dolphin/gx.h"
+#include "Dolphin/gx.h"
+#include "Color4.h"
+
+struct J3DGXColor : public GXColor {
+	J3DGXColor() { }
+
+	J3DGXColor(u8 _r, u8 _g, u8 _b, u8 _a)
+	{
+		r = _r;
+		g = _g;
+		b = _b;
+		a = _a;
+	}
+
+	J3DGXColor(const J3DGXColor& other)
+	{
+		r = other.r;
+		g = other.g;
+		b = other.b;
+		a = other.a;
+	}
+
+	J3DGXColor(const GXColor& other)
+	{
+		r = other.r;
+		g = other.g;
+		b = other.b;
+		a = other.a;
+	}
+
+	J3DGXColor(const u32& other)
+	{
+#if TARGET_PC
+		// the u32 is RGBA from the high byte down, as the big-endian original reads it
+		r = other >> 24;
+		g = other >> 16;
+		b = other >> 8;
+		a = other;
+		return;
+#endif
+		GXColor* otherBytes = (GXColor*)&other;
+		r                   = otherBytes->r;
+		g                   = otherBytes->g;
+		b                   = otherBytes->b;
+		a                   = otherBytes->a;
+	}
+
+	inline J3DGXColor(const Color4& other)
+	{ // may imply color4 inherits gxcolor
+		r = other.r;
+		g = other.g;
+		b = other.b;
+		a = other.a;
+	}
+
+	J3DGXColor& operator=(const GXColor& color)
+	{
+		*(GXColor*)this = color;
+		return *this;
+	}
+
+	const u8* asBytes() const { return (u8*)this; }
+};
+
+struct J3DGXColorS10 : public GXColorS10 {
+	J3DGXColorS10() { }
+
+	J3DGXColorS10(u16 _r, u16 _g, u16 _b, u16 _a)
+	{
+		r = _r;
+		g = _g;
+		b = _b;
+		a = _a;
+	}
+
+	J3DGXColorS10(f32 _r, f32 _g, f32 _b, u16 _a)
+	{
+		r = _r;
+		g = _g;
+		b = _b;
+		a = _a;
+	}
+
+	J3DGXColorS10(const J3DGXColorS10& other) { *this = other; }
+
+	J3DGXColorS10(const GXColorS10& other)
+	{
+		r = other.r;
+		g = other.g;
+		b = other.b;
+		a = other.a;
+	}
+
+	J3DGXColorS10(const u64& other)
+	{
+#if TARGET_PC
+		r = (s16)(other >> 48);
+		g = (s16)(other >> 32);
+		b = (s16)(other >> 16);
+		a = (s16)other;
+		return;
+#endif
+		GXColorS10* otherBytes = (GXColorS10*)&other;
+		r                      = otherBytes->r;
+		g                      = otherBytes->g;
+		b                      = otherBytes->b;
+		a                      = otherBytes->a;
+	}
+
+	J3DGXColorS10& operator=(const GXColorS10& color)
+	{
+		*(GXColorS10*)this = color;
+		return *this;
+	}
+};
+
+#endif

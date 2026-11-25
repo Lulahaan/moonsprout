@@ -1,0 +1,35 @@
+#ifndef _JSYSTEM_JSU_JSU_H
+#define _JSYSTEM_JSU_JSU_H
+
+#include "types.h"
+
+inline u8 JSULoByte(u16 data)
+{
+	return data & 0xFF;
+}
+inline u8 JSUHiByte(u16 data)
+{
+	data >>= 8;
+	return data;
+}
+
+// these two templates need to be in this order for weak function ordering lol
+template <typename T>
+T* JSUConvertOffsetToPtr(const void* base, u32 offset)
+{
+	if (offset == 0) {
+		return nullptr;
+	}
+	return (T*)((sptr)base + offset);
+}
+
+template <typename T>
+T* JSUConvertOffsetToPtr(const void* base, const void* offset)
+{
+	if (offset == 0) {
+		return nullptr;
+	}
+	return (T*)((sptr)(base) + (sptr)(offset));
+}
+
+#endif

@@ -1,0 +1,28 @@
+--- a/include/aurora/aurora.h
++++ b/include/aurora/aurora.h
+@@ -116,6 +116,12 @@
+    * This can be set to 0 to disable allocating this region.
+    */
+   uint32_t mem2Size;
++
++  /*
++   * Leave the window hidden after initialization; the application shows it (window::show_window)
++   * once it has a first frame to present, instead of an uncleared surface while it loads.
++   */
++  bool startHidden;
+ } AuroraConfig;
+ 
+ typedef struct {
+--- a/lib/aurora.cpp
++++ b/lib/aurora.cpp
+@@ -171,7 +171,9 @@
+   AURORA_ASSERT(window::create_renderer(), "Failed to initialize SDL renderer: {}", SDL_GetError());
+ #endif
+ 
+-  window::show_window();
++  if (!config.startHidden) {
++    window::show_window();
++  }
+   thread::set_current({
+       .name = "Main thread",
+       .affinity = thread::Affinity::SharedCache,

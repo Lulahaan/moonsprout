@@ -1,0 +1,96 @@
+diff --git a/include/aurora/aurora.h b/include/aurora/aurora.h
+index 4e0158b..7040295 100644
+--- a/include/aurora/aurora.h
++++ b/include/aurora/aurora.h
+@@ -150,6 +150,14 @@ void aurora_set_timescale(float scale);
+ AuroraBackend aurora_get_backend();
+ const AuroraBackend* aurora_get_available_backends(size_t* count);
+ float aurora_get_timescale();
++/**
++ * Like aurora_end_frame, but submits the frame's commands without acquiring a surface texture or
++ * presenting: the EFB still holds the frame's picture for the next frame. For frame-rate limits
++ * that skip presents without slowing the caller.
++ */
++void aurora_end_frame_no_present();
++/** Presenting frames ended on this thread whose present the render worker has not finished. */
++uint32_t aurora_presents_in_flight();
+ 
+ #ifdef __cplusplus
+ }
+diff --git a/lib/aurora.cpp b/lib/aurora.cpp
+index 23c51aa..07bb4dd 100644
+--- a/lib/aurora.cpp
++++ b/lib/aurora.cpp
+@@ -1,3 +1,4 @@
++#include <atomic>
+ #include <aurora/aurora.h>
+ #include <aurora/time.hpp>
+ 
+@@ -261,7 +262,11 @@ bool begin_frame() noexcept {
+   return true;
+ }
+ 
+-void end_frame() noexcept {
++// Presenting frames ended on the game thread whose render worker callback has not finished yet
++// (aurora_presents_in_flight).
++std::atomic<uint32_t> g_presentsInFlight{0};
++
++void end_frame(bool present = true) noexcept {
+   ZoneScoped;
+ #ifdef AURORA_ENABLE_GX
+   gx::fifo::drain();
+@@ -285,7 +290,10 @@ void end_frame() noexcept {
+   }
+ #endif
+ 
+-  gfx::end_frame([rmlBindGroup = std::move(rmlBindGroup), rmlOverlay, viewport,
++  if (present) {
++    g_presentsInFlight.fetch_add(1, std::memory_order_acq_rel);
++  }
++  gfx::end_frame([present, rmlBindGroup = std::move(rmlBindGroup), rmlOverlay, viewport,
+                   imguiDrawData = std::move(imguiDrawData)](
+                      wgpu::CommandEncoder& encoder, std::vector<gfx::AfterSubmitCallback> afterSubmitCallbacks) {
+     wgpu::Texture currentTexture;
+@@ -293,7 +301,7 @@ void end_frame() noexcept {
+     auto surfaceStatus = wgpu::SurfaceGetCurrentTextureStatus::Error;
+     {
+       window::SurfaceLock surfaceLock;
+-      if (window::is_presentable() && g_surface) {
++      if (present && window::is_presentable() && g_surface) {
+         ZoneScopedN("Acquire texture");
+         wgpu::SurfaceTexture surfaceTexture;
+         g_surface.GetCurrentTexture(&surfaceTexture);
+@@ -363,7 +371,7 @@ void end_frame() noexcept {
+         imgui::render(pass, imguiDrawData);
+         pass.End();
+       }
+-    } else {
++    } else if (present) {
+       Log.info("Skipping present; window not presentable");
+     }
+     webgpu::gpu_prof::frame_end(encoder);
+@@ -389,7 +397,7 @@ void end_frame() noexcept {
+         Log.warn("Surface present failed");
+         webgpu::release_surface();
+       }
+-    } else if (g_surface) {
++    } else if (present && g_surface) {
+       switch (surfaceStatus) {
+       case wgpu::SurfaceGetCurrentTextureStatus::Timeout:
+         Log.warn("Surface texture acquisition timed out");
+@@ -422,6 +430,9 @@ void end_frame() noexcept {
+       }
+     }
+     gfx::after_submit();
++    if (present) {
++      g_presentsInFlight.fetch_sub(1, std::memory_order_acq_rel);
++    }
+ 
+     TracyPlotConfig("aurora: lastVertSize", tracy::PlotFormatType::Memory, false, true, 0);
+     TracyPlotConfig("aurora: lastUniformSize", tracy::PlotFormatType::Memory, false, true, 0);
+@@ -484,3 +495,5 @@ void aurora_set_resampler(AuroraSampler sampler) {
+ }
+ void aurora_set_timescale(float scale) { aurora::time::set_scale(scale); }
+ float aurora_get_timescale() { return aurora::time::scale(); }
++void aurora_end_frame_no_present() { aurora::end_frame(false); }
++uint32_t aurora_presents_in_flight() { return aurora::g_presentsInFlight.load(std::memory_order_acquire); }

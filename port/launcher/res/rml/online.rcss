@@ -1,0 +1,572 @@
+/* Online screens (M5.3b; docs/launcher/SETTINGS.md 18, DESIGN.md "Online screens"):
+   the Multiplayer window (online_window.cpp), the in-game Online window (online_status_window.cpp)
+   and the wait pill over the game (online_overlay.cpp).
+   The Mods window's shell (mods.rcss, saves.rcss): a list on the left, the selected item on the
+   right; help notes as in settings.rcss; button prompts as on the start menu (DESIGN 5.17).
+   Theme tokens only, except the two team colours, which are the M5.3a captain markers' Okabe-Ito
+   vermillion and blue (port/game/navi/view.cpp), so a seat reads the same in the room and in game. */
+
+/* ==== Window shell ==== */
+
+window.online pane.list,
+window.online pane.seats {
+    flex: 0 0 380dp;
+}
+
+window.online pane.seats {
+    flex: 0 0 470dp;
+}
+
+/* The selected item takes the rest of the window (no empty help column). */
+window.online content pane.detail:last-of-type {
+    flex: 1 1 0;
+    gap: var(--space-sm);
+}
+
+window.online pane.detail section-heading,
+window.online pane.seats section-heading {
+    margin-top: var(--space-md);
+}
+
+window.online pane.detail section-heading:first-child,
+window.online pane.seats section-heading:first-child {
+    margin-top: 2dp;
+}
+
+window.online list-note {
+    display: block;
+    margin-top: var(--space-md);
+    padding: 0 var(--space-sm);
+    font-size: var(--font-size-sm);
+    line-height: 1.4;
+    color: var(--text-tertiary);
+    word-break: break-word;
+}
+
+window.online button:not(.icon-button) {
+    text-align: left;
+}
+
+window.online button.primary {
+    margin-top: var(--space-sm);
+}
+
+/* Actions in the right pane keep a button's width instead of spanning the pane. */
+window.online pane.detail > button {
+    align-self: flex-start;
+    min-width: 280dp;
+}
+
+window.online pane > small {
+    display: block;
+    padding: 0 var(--space-sm);
+}
+
+form-header {
+    display: block;
+    margin-bottom: var(--space-sm);
+}
+
+form-header heading,
+room-header heading {
+    font-family: var(--font-family-heading);
+    font-size: var(--font-size-6xl);
+    line-height: 1.2;
+}
+
+form-header small,
+room-header small {
+    display: block;
+    margin-top: var(--space-2xs);
+    word-break: break-word;
+}
+
+/* ==== Help notes (settings.rcss) ==== */
+
+window.online help-notes,
+window.online div.online-notes {
+    display: block;
+}
+
+window.online help-note {
+    display: flex;
+    flex-flow: row;
+    align-items: flex-start;
+    gap: var(--space-sm);
+    margin-top: var(--space-xs);
+    font-size: var(--font-size-md);
+    line-height: 1.4;
+    color: rgba(var(--color-text-rgb), 80%);
+}
+
+window.online note-icon {
+    display: block;
+    flex: 0 0 auto;
+    font-family: var(--font-family-icons);
+    font-weight: normal;
+    font-size: 20dp;
+    line-height: 1;
+    margin-top: 1dp;
+}
+
+window.online note-text {
+    display: block;
+    flex: 1 1 auto;
+    min-width: 0;
+    word-break: break-word;
+}
+
+window.online help-note.info note-icon { color: rgb(var(--color-info-rgb)); }
+window.online help-note.ready { color: var(--color-success); }
+window.online help-note.ready note-icon { color: var(--color-success); }
+window.online help-note.warning { color: rgb(var(--color-warning-rgb)); }
+window.online help-note.warning note-icon { color: rgb(var(--color-warning-rgb)); }
+window.online help-note.error { color: var(--color-error-text); }
+window.online help-note.error note-icon { color: rgb(var(--color-error-rgb)); }
+
+window.online help-default {
+    display: block;
+    font-size: var(--font-size-md);
+    color: rgba(var(--color-text-rgb), 55%);
+}
+
+/* ==== Text fields: placeholder and the invalid state (DESIGN 5.8) ==== */
+
+select-button.text-field value.placeholder {
+    color: var(--text-tertiary);
+    font-weight: 600;
+}
+
+select-button.text-field.invalid {
+    box-shadow: 0 0 0 2dp rgb(var(--color-error-rgb));
+}
+
+select-button.text-field.invalid:focus-visible {
+    box-shadow: 0 0 0 2dp rgb(var(--color-error-rgb)), 0 0 0 4dp rgba(5, 11, 26, 85%), 0 0 16dp 3dp rgba(255, 92, 108, 40%);
+}
+
+select-button.code-field value {
+    font-family: var(--font-family-monospace);
+    font-weight: normal;
+    letter-spacing: 0.06em;
+}
+
+/* ==== Connecting: the bead loader (DESIGN 5.15) ==== */
+
+window.online loader.connecting {
+    justify-content: flex-start;
+    height: 24dp;
+    margin: var(--space-sm) var(--space-sm) var(--space-md);
+}
+
+/* ==== Team markers (M5.3a): team 0 a plain vermillion square, team 1 a blue square in a white
+   frame. Colour plus shape, so the team is never told by colour alone. ==== */
+
+team-marker {
+    display: block;
+    flex: 0 0 auto;
+    width: 16dp;
+    height: 16dp;
+}
+
+team-marker.red {
+    background-color: rgb(213, 94, 0);
+    border-radius: 2dp;
+}
+
+team-marker.blue {
+    background-color: #FFFFFF;
+    border-radius: 2dp;
+    padding: 3dp;
+}
+
+team-marker.blue team-fill {
+    display: block;
+    width: 100%;
+    height: 100%;
+    background-color: rgb(0, 114, 178);
+}
+
+team-marker.none {
+    border-width: 2dp;
+    border-color: var(--text-tertiary);
+    border-radius: 2dp;
+}
+
+select-button key team-marker {
+    display: inline-block;
+    margin-left: var(--space-sm);
+    vertical-align: middle;
+}
+
+/* ==== The room ==== */
+
+room-header {
+    display: block;
+    margin-bottom: var(--space-xs);
+}
+
+room-title-row {
+    display: flex;
+    align-items: center;
+    gap: var(--space-md);
+}
+
+code-pill {
+    display: block;
+    height: 36dp;
+    padding: 0 16dp;
+    border-radius: 18dp;
+    font-family: var(--font-family-monospace);
+    font-size: var(--font-size-3xl);
+    line-height: 36dp;
+    letter-spacing: 0.08em;
+    color: var(--color-text);
+    background-color: rgba(var(--color-control-rgb), 60%);
+    box-shadow: 0 0 0 1dp rgba(var(--color-border-rgb), 55%), inset 0 2dp 4dp 0 rgba(5, 11, 26, 50%);
+}
+
+/* A seat: <select-button class="seat-row"><seat-line>marker, P<n>, name, crown, You, gap, ping,
+   link, ready</seat-line><seat-note/></select-button> */
+select-button.seat-row,
+member-row.seat-row {
+    display: flex;
+    flex-flow: column;
+    align-items: stretch;
+    gap: var(--space-xs);
+    min-height: 56dp;
+}
+
+member-row.seat-row {
+    padding: 10dp 18dp;
+    border-radius: var(--radius-row);
+    background-color: rgba(var(--color-control-rgb), 35%);
+    box-shadow: var(--shadow-row);
+}
+
+seat-line {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+    min-height: 34dp;
+}
+
+member-stats {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+    padding-left: 24dp;
+}
+
+seat-num {
+    display: block;
+    flex: 0 0 auto;
+    min-width: 30dp;
+    font-family: var(--font-family-heading);
+    font-weight: 600;
+    font-size: var(--font-size-md);
+    color: var(--text-secondary);
+}
+
+seat-name {
+    display: block;
+    flex: 0 1 auto;
+    min-width: 48dp;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-family: var(--font-family-heading);
+    font-weight: 500;
+    font-size: var(--font-size-xl);
+    line-height: 26dp;
+}
+
+select-button.open-seat seat-name {
+    color: var(--text-tertiary);
+}
+
+seat-crown {
+    display: block;
+    flex: 0 0 auto;
+    font-family: var(--font-family-icons);
+    font-weight: normal;
+    font-size: 20dp;
+    line-height: 1;
+    color: var(--color-sun);
+}
+
+seat-gap {
+    display: block;
+    flex: 1 1 0;
+}
+
+you-tag,
+lag-tag,
+ping-badge,
+delay-badge,
+ready-pill,
+take-seat {
+    display: block;
+    flex: 0 0 auto;
+    height: 26dp;
+    padding: 0 10dp;
+    border-radius: 13dp;
+    font-family: var(--font-family-heading);
+    font-weight: 600;
+    font-size: var(--font-size-xs);
+    line-height: 26dp;
+    white-space: nowrap;
+}
+
+you-tag {
+    color: var(--color-ink);
+    background-color: rgba(var(--color-border-rgb), 90%);
+}
+
+ping-badge,
+delay-badge {
+    font-family: var(--font-family-monospace);
+    font-weight: normal;
+    color: var(--text-value);
+    background-color: rgba(var(--color-control-rgb), 55%);
+    box-shadow: 0 0 0 1dp rgba(var(--color-border-rgb), 30%);
+}
+
+link-icon {
+    display: block;
+    flex: 0 0 auto;
+    font-family: var(--font-family-icons);
+    font-weight: normal;
+    font-size: 20dp;
+    line-height: 1;
+    color: var(--color-border);
+}
+
+link-icon.relay {
+    color: var(--color-sun);
+}
+
+/* The in-game Online window names the link too (the glyph alone is not enough there). */
+link-label {
+    display: block;
+    flex: 0 0 auto;
+    font-size: var(--font-size-sm);
+    color: var(--text-secondary);
+    white-space: nowrap;
+}
+
+ready-pill {
+    min-width: 84dp;
+    text-align: center;
+    color: var(--text-secondary);
+    background-color: rgba(var(--color-text-rgb), 8%);
+    box-shadow: 0 0 0 1dp rgba(var(--color-text-rgb), 22%);
+}
+
+ready-pill.on {
+    color: var(--color-ink);
+    background-color: var(--color-success);
+    decorator: linear-gradient(180deg, #A6EA6A 0%, #6FD649 100%);
+    box-shadow: none;
+}
+
+ready-pill.waiting {
+    color: var(--color-sun);
+    background-color: rgba(var(--color-sun-rgb), 12%);
+    box-shadow: 0 0 0 1dp rgba(255, 210, 63, 45%);
+}
+
+take-seat {
+    color: var(--color-accent);
+    box-shadow: 0 0 0 1dp rgba(var(--color-accent-rgb), 60%);
+}
+
+lag-tag {
+    color: var(--color-ink);
+    background-color: rgb(var(--color-warning-rgb));
+}
+
+seat-note {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-sm);
+    padding-left: 24dp;
+    font-size: var(--font-size-sm);
+    line-height: 1.35;
+    color: rgb(var(--color-warning-rgb));
+    white-space: normal;
+}
+
+seat-note note-icon {
+    font-size: 18dp;
+    color: rgb(var(--color-warning-rgb));
+}
+
+select-button.seat-row.mismatch {
+    box-shadow: 0 0 0 1dp rgba(var(--color-warning-rgb), 55%);
+}
+
+select-button.seat-row.mismatch:focus-visible {
+    box-shadow: var(--shadow-focus);
+}
+
+window.online watching {
+    display: block;
+    margin-top: var(--space-xs);
+    padding: 0 var(--space-sm);
+    font-size: var(--font-size-sm);
+    color: var(--text-secondary);
+    word-break: break-word;
+}
+
+window.online button.leave-button {
+    align-self: flex-start;
+    margin-top: var(--space-lg);
+}
+
+select-button.ready-toggle[on] {
+    box-shadow: 0 0 0 1dp rgba(var(--color-success-rgb), 55%);
+}
+
+select-button.ready-toggle[on]:focus-visible {
+    box-shadow: var(--shadow-focus);
+}
+
+select-button.info-row value {
+    color: var(--color-text);
+}
+
+window.online-status p.status-body {
+    font-size: var(--font-size-lg);
+    line-height: 1.45;
+    color: rgba(var(--color-text-rgb), 85%);
+}
+
+/* ==== Button prompts (DESIGN 5.17): the shared component, placed at the window's bottom edge ==== */
+
+button-prompts.online-prompts {
+    flex: 0 0 auto;
+    justify-content: flex-end;
+    padding: 10dp 24dp 12dp;
+    border-top-width: 1dp;
+    border-top-color: rgba(var(--color-border-rgb), 18%);
+}
+
+button-prompts.online-prompts.hidden {
+    display: none;
+}
+
+@media (max-width: 860dp) {
+    window.online pane.list,
+    window.online pane.seats {
+        flex: 0 0 46%;
+    }
+}
+
+@media (max-height: 640dp) {
+    form-header heading,
+    room-header heading {
+        font-size: var(--font-size-4xl);
+    }
+
+    button-prompts.online-prompts {
+        display: none;
+    }
+}
+
+/* ==== The wait pill over the game (online_overlay.cpp) ==== */
+
+body.online-overlay {
+    display: block;
+    width: 100%;
+    height: 100%;
+    margin: 0;
+    padding: 0;
+    font-family: var(--font-family-body);
+    font-weight: 600;
+    font-size: var(--font-size-base);
+    color: var(--color-text);
+    pointer-events: none;
+    z-index: 3;
+}
+
+/* Centred without calc(): a full-width row centres the pill (DESIGN 8.1). */
+wait-row {
+    position: absolute;
+    top: 24dp;
+    left: 0;
+    right: 0;
+    display: flex;
+    justify-content: center;
+    pointer-events: none;
+    transition: top 0.26s cubic-out;
+}
+
+body.online-overlay.bar-open wait-row {
+    top: 132dp; /* below the bar and its "The game is still running" tag */
+}
+
+online-wait {
+    flex: 0 1 auto;
+    max-width: 92%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-md);
+    min-height: 52dp;
+    padding: 8dp 10dp 8dp 20dp;
+    border-radius: 26dp;
+    border-width: 1dp;
+    border-color: rgba(var(--color-border-rgb), 60%);
+    background-color: var(--surface-bar);
+    decorator: var(--surface-shine);
+    backdrop-filter: var(--blur-bar);
+    box-shadow: 0 10dp 28dp 0 rgba(5, 11, 26, 55%), inset 0 1dp 0 0 rgba(255, 255, 255, 30%);
+    visibility: hidden; /* its backdrop blur would still draw at opacity 0 */
+    opacity: 0;
+    transform: translateY(-16dp);
+    transition: transform 0.18s cubic-in, opacity 0.16s cubic-in;
+}
+
+online-wait[open] {
+    visibility: visible;
+    opacity: 1;
+    transform: translateY(0dp);
+    transition: transform 0.26s back-out, opacity 0.2s cubic-out;
+}
+
+online-wait icon.spinner {
+    flex: 0 0 auto;
+    font-size: 24dp;
+}
+
+wait-label {
+    display: block;
+    flex: 0 1 auto;
+    min-width: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-family: var(--font-family-heading);
+    font-weight: 600;
+    font-size: var(--font-size-xl);
+    line-height: 26dp;
+}
+
+wait-seconds {
+    display: none;
+    margin-left: var(--space-sm);
+    font-family: var(--font-family-monospace);
+    font-weight: normal;
+    font-size: var(--font-size-md);
+    color: var(--text-secondary);
+}
+
+wait-seconds.shown {
+    display: inline;
+}
+
+online-wait button {
+    flex: 0 0 auto;
+    pointer-events: auto;
+}

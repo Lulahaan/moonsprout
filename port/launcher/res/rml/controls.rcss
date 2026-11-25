@@ -1,0 +1,663 @@
+/*
+ * Controls: buttons and the settings row with its toggle, slider, select and text field
+ * (DESIGN.md 5.1, 5.2, 5.4-5.8). Transitions sit on tag-level selectors where possible so the
+ * reduce-motion rule in global.rcss can replace them.
+ */
+
+/* ==== Shared base: button and settings row ==== */
+
+button,
+select-button {
+    color: var(--button-color);
+    background-color: var(--button-background);
+    box-shadow: var(--shadow-control);
+    transform-origin: center;
+    transition: background-color 0.12s cubic-out, transform 0.2s back-out;
+}
+
+/* Hover and focus (5.1) look different, because the pointer can rest on one row while the
+ * keyboard or gamepad focuses another: hover only lifts the fill a little and lightens the rim;
+ * focus is the sprout double ring with its glow, raised so the neighbours do not clip it. */
+button:not(:disabled):hover,
+select-button:not(:disabled):hover {
+    background-color: rgba(var(--color-interactive-rgb), 9%);
+    box-shadow: 0 0 0 1dp rgba(255, 255, 255, 30%);
+}
+
+button:not(:disabled):focus-visible,
+select-button:not(:disabled):focus-visible {
+    z-index: 1;
+    background-color: var(--button-background-hover);
+    box-shadow: var(--shadow-focus);
+}
+
+button:not(:disabled):selected,
+select-button:not(:disabled):selected {
+    background-color: var(--button-background-selected);
+}
+
+button:not(:disabled):active,
+select-button:not(:disabled):active {
+    background-color: var(--button-background-active);
+}
+
+button:disabled,
+select-button:disabled {
+    opacity: 0.4;
+    cursor: default;
+}
+
+/* A disabled settings row can still take focus, so its help pane can say why it is disabled. */
+select-button:disabled:focus-visible {
+    z-index: 1;
+    opacity: 0.7;
+    box-shadow: 0 0 0 2dp rgba(140, 224, 74, 70%), 0 0 0 4dp rgba(5, 11, 26, 85%);
+}
+
+/* ==== Button (5.2) ==== */
+
+button {
+    min-height: 44dp;
+    padding: 10dp 22dp;
+    border-radius: 999dp;
+    font-family: var(--font-family-heading);
+    font-weight: 600;
+    font-size: var(--font-size-xl);
+    line-height: 24dp;
+    text-align: center;
+}
+
+/* Press (4.2): a quick squash, released with a small overshoot by the base transition. Rows do not
+ * squash: they hold sliders that are dragged. */
+button:not(:disabled):active {
+    transform: scale(0.96);
+    transition: background-color 0.09s cubic-out, transform 0.09s cubic-out;
+}
+
+button.compact {
+    min-height: 32dp;
+    padding: 6dp 14dp;
+    font-size: var(--font-size-sm);
+    line-height: 20dp;
+}
+
+/* Icon and label: <button class="with-icon"><icon/><span>Label</span></button>. RmlUi does not lay
+ * bare text out as a flex item, so the label needs its own element. */
+button.with-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8dp;
+}
+
+button.with-icon icon {
+    flex-shrink: 0;
+    font-size: 1.2em;
+    line-height: 1;
+}
+
+/* The one primary action on a screen: ship pink-red. */
+button.primary {
+    color: #FFFFFF;
+    background-color: var(--color-brand-fill);
+    decorator: linear-gradient(180deg, #E63C66 0%, #C8284F 100%);
+    box-shadow: 0 0 0 1dp rgba(255, 255, 255, 22%), inset 0 1dp 0 0 rgba(255, 255, 255, 35%), 0 4dp 14dp 0 rgba(200, 40, 79, 45%);
+}
+
+button.primary:not(:disabled):hover,
+button.primary:not(:disabled):selected {
+    background-color: var(--color-brand-fill);
+    decorator: linear-gradient(180deg, #F0496E 0%, #D43460 100%);
+    box-shadow: 0 0 0 1dp rgba(255, 255, 255, 45%), inset 0 1dp 0 0 rgba(255, 255, 255, 35%), 0 4dp 14dp 0 rgba(200, 40, 79, 45%);
+}
+
+button.primary:not(:disabled):focus-visible {
+    background-color: var(--color-brand-fill);
+    decorator: linear-gradient(180deg, #F0496E 0%, #D43460 100%);
+    box-shadow: var(--shadow-focus);
+}
+
+button.primary:not(:disabled):active {
+    background-color: var(--color-brand-fill);
+    decorator: linear-gradient(180deg, #C8284F 0%, #A81F42 100%);
+}
+
+/* Affirmative green: Apply, Restart now. */
+button.confirm {
+    color: var(--color-ink);
+    background-color: var(--color-success);
+    decorator: linear-gradient(180deg, #A6EA6A 0%, #6FD649 100%);
+    box-shadow: 0 0 0 1dp rgba(255, 255, 255, 22%), inset 0 1dp 0 0 rgba(255, 255, 255, 45%), 0 4dp 14dp 0 rgba(111, 214, 73, 30%);
+}
+
+button.confirm:not(:disabled):hover,
+button.confirm:not(:disabled):selected,
+button.confirm:not(:disabled):focus-visible {
+    background-color: var(--color-success);
+    decorator: linear-gradient(180deg, #B9F27C 0%, #7FE058 100%);
+}
+
+button.confirm:not(:disabled):hover {
+    box-shadow: 0 0 0 1dp rgba(255, 255, 255, 55%), inset 0 1dp 0 0 rgba(255, 255, 255, 45%);
+}
+
+/* A sprout ring does not show on a sprout-green button: focus is a dark gap, a white ring and a
+ * green glow instead, and the button grows a little. */
+button.confirm:not(:disabled):focus-visible {
+    box-shadow: 0 0 0 2dp rgba(5, 11, 26, 90%), 0 0 0 4dp #FFFFFF, 0 0 18dp 4dp rgba(140, 224, 74, 70%);
+    transform: scale(1.04);
+}
+
+button.confirm:not(:disabled):active {
+    background-color: var(--color-success);
+    decorator: linear-gradient(180deg, #8CE04A 0%, #5FBF3A 100%);
+}
+
+/* Floats directly on the scene. */
+button.overlay {
+    --button-background: rgba(var(--color-surface-rgb), 80%);
+    backdrop-filter: var(--blur-bar);
+}
+
+button.danger {
+    color: var(--color-error-text);
+    box-shadow: 0 0 0 1dp rgba(255, 92, 108, 55%);
+}
+
+button.danger:not(:disabled):hover,
+button.danger:not(:disabled):selected {
+    background-color: rgba(var(--color-error-rgb), 12%);
+    box-shadow: 0 0 0 1dp rgb(255, 92, 108);
+}
+
+button.danger:not(:disabled):focus-visible {
+    background-color: rgba(var(--color-error-rgb), 18%);
+}
+
+button.danger:not(:disabled):active {
+    background-color: rgba(var(--color-error-rgb), 30%);
+}
+
+button.icon-button {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    width: 44dp;
+    height: 44dp;
+    min-height: 0;
+    padding: 0;
+    border-radius: 22dp;
+    font-size: 24dp;
+}
+
+button.icon-button icon {
+    display: block;
+    flex-shrink: 0;
+    line-height: 1;
+    pointer-events: none;
+}
+
+button.icon-button.compact {
+    width: 32dp;
+    height: 32dp;
+    border-radius: 16dp;
+    font-size: 18dp;
+}
+
+button.icon-button.orb {
+    box-shadow: var(--shadow-orb), 0 0 0 2dp rgba(111, 182, 222, 55%);
+}
+
+/* ==== Settings row (5.4) ==== */
+
+select-button {
+    display: flex;
+    align-items: center;
+    gap: 12dp;
+    min-height: 52dp;
+    padding: 10dp 18dp;
+    border-radius: 16dp;
+    background-color: rgba(var(--color-control-rgb), 35%);
+    box-shadow: var(--shadow-row);
+}
+
+select-button key,
+select-button value {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* The label is laid out at its measured width, and at fractional scales the drawn text can come
+ * out a pixel wider, which RmlUi answers with an ellipsis ("Time of D..." at 120%). Its ellipsis
+ * test counts the right padding, so 3dp of padding (taken back by the margin) absorbs that. */
+select-button key {
+    flex: 0 1 auto;
+    padding-right: 3dp;
+    margin-right: -3dp;
+    font-family: var(--font-family-heading);
+    font-weight: 500;
+    font-size: var(--font-size-xl);
+    line-height: 26dp;
+}
+
+/* The value hugs the right edge at its own width, so the modified dot sits right before it. It is
+ * measured the same way as the label and shows the same rounding ("105..." at 105%, "Ster..." at
+ * 110%), so it gets the same 3dp of ellipsis slack, taken back by the margin. */
+select-button value {
+    flex: 0 1 auto;
+    margin-left: auto;
+    padding-right: 3dp;
+    margin-right: -3dp;
+    font-family: var(--font-family-body);
+    font-weight: 700;
+    font-size: var(--font-size-xl);
+    line-height: 26dp;
+    text-align: right;
+    color: var(--text-value);
+}
+
+/* Changed from its default: sun yellow, heavier, and a sun dot in front (never colour alone). */
+select-button value.modified {
+    padding-left: 14dp;
+    font-weight: 800;
+    color: var(--color-sun);
+    decorator: radial-gradient(circle 3dp at 3dp 50%, #FFD23F 0%, #FFD23F 85%, rgba(255, 210, 63, 0%) 100%);
+}
+
+select-button icon {
+    display: none;
+    flex: 0 0 auto;
+    font-size: 22dp;
+    color: var(--color-border);
+}
+
+select-button.has-icon icon,
+select-button.group-button icon {
+    display: inline-block;
+}
+
+select-button.compact {
+    min-height: 36dp;
+    padding: 6dp 14dp;
+    border-radius: 12dp;
+}
+
+select-button.compact key {
+    font-size: var(--font-size-sm);
+    line-height: 20dp;
+}
+
+select-button.compact value,
+select-button.compact input {
+    font-size: var(--font-size-sm);
+    line-height: 20dp;
+}
+
+/* Group rows open a sub-page: a chevron that leans forward on hover. */
+select-button.group-button > icon {
+    flex: 0 0 24dp;
+    margin-left: auto;
+    width: 24dp;
+    height: 24dp;
+    font-size: 24dp;
+    color: var(--text-secondary);
+    decorator: text("&#xe5cc;" center center);
+    transition: transform 0.12s cubic-out, color 0.12s cubic-out;
+}
+
+select-button.group-button:hover > icon,
+select-button.group-button:focus-visible > icon {
+    color: var(--color-text);
+    transform: translateX(4dp);
+}
+
+select-button.group-button value {
+    display: none;
+}
+
+/* ==== Toggle (5.5): <toggle><track-fill/><knob><leaf.l/><leaf.r/></knob></toggle> ==== */
+
+select-button.bool-button value {
+    color: var(--text-tertiary);
+}
+
+select-button.bool-button[on] value {
+    font-weight: 800;
+    color: var(--color-accent);
+}
+
+select-button.bool-button[on] value.modified,
+select-button.bool-button value.modified {
+    color: var(--color-sun);
+}
+
+toggle {
+    display: block;
+    position: relative;
+    flex: 0 0 54dp;
+    width: 54dp;
+    height: 30dp;
+    margin-left: 2dp;
+    border-radius: 15dp;
+    background-color: rgba(var(--color-control-rgb), 70%);
+    box-shadow: inset 0 2dp 4dp 0 rgba(5, 11, 26, 60%), 0 0 0 1dp rgba(111, 182, 222, 35%);
+}
+
+toggle track-fill {
+    display: block;
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    border-radius: 15dp;
+    background-color: var(--color-leaf);
+    decorator: linear-gradient(90deg, #5FBF3A 0%, #8CE04A 100%);
+    box-shadow: inset 0 2dp 4dp 0 rgba(5, 11, 26, 35%);
+    opacity: 0;
+    transition: opacity 0.16s cubic-out;
+}
+
+toggle knob {
+    display: block;
+    position: absolute;
+    left: 3dp;
+    top: 3dp;
+    width: 24dp;
+    height: 24dp;
+    border-radius: 12dp;
+    background-color: #C9D6E6;
+    box-shadow: 0 2dp 6dp 0 rgba(5, 11, 26, 55%), inset 3dp 4dp 6dp 0 rgba(255, 255, 255, 45%), inset -3dp -4dp 8dp 0 rgba(5, 11, 26, 25%);
+    transition: transform 0.16s cubic-out, background-color 0.12s cubic-out;
+}
+
+/* The knob carries a sprout on its face that grows when the switch turns on. */
+toggle knob leaf {
+    top: 6dp;
+    width: 8dp;
+    height: 8dp;
+    background-color: var(--color-leaf-deep);
+    decorator: linear-gradient(135deg, #8CE04A 0%, #2E7D32 100%);
+    transform: scale(0);
+    transition: transform 0.12s cubic-in;
+}
+
+toggle knob leaf.l {
+    left: 4dp;
+    transform-origin: right bottom;
+}
+
+toggle knob leaf.r {
+    left: 12dp;
+    decorator: linear-gradient(225deg, #8CE04A 0%, #2E7D32 100%);
+    transform-origin: left bottom;
+}
+
+select-button.bool-button[on] track-fill {
+    opacity: 1;
+}
+
+select-button.bool-button[on] knob {
+    background-color: #FFFFFF;
+    transform: translateX(24dp);
+    transition: transform 0.2s back-out, background-color 0.12s cubic-out;
+}
+
+select-button.bool-button[on] knob leaf.l {
+    transform: scale(1);
+    transition: transform 0.32s back-out;
+}
+
+select-button.bool-button[on] knob leaf.r {
+    transform: scale(1);
+    transition: transform 0.32s back-out 0.06s;
+}
+
+select-button.bool-button:disabled toggle {
+    opacity: 0.7;
+}
+
+/* ==== Number and slider (5.6): <meter><chev.l/><fill/><knob/><chev.r/></meter> ==== */
+
+select-button.number-button key {
+    flex: 1 1 auto;
+}
+
+select-button.number-button value {
+    flex: 0 0 auto;
+    min-width: 64dp;
+}
+
+/* Typing a number: the field's text sits where the value was, right-aligned like it. */
+select-button.number-button input {
+    text-align: right;
+}
+
+meter {
+    display: block;
+    position: relative;
+    flex: 0 0 180dp;
+    width: 180dp;
+    height: 10dp;
+    margin: 0 18dp;
+    border-radius: 5dp;
+    background-color: rgba(var(--color-white-rgb), 10%);
+    box-shadow: inset 0 1dp 3dp 0 rgba(5, 11, 26, 60%), 0 0 0 1dp rgba(111, 182, 222, 14%);
+    cursor: pointer;
+    drag: drag;
+}
+
+meter fill {
+    display: block;
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 0;
+    height: 100%;
+    border-radius: 5dp;
+    background-color: #FFC94D;
+    decorator: linear-gradient(90deg, #FFE27A 0%, #FFB13B 100%);
+    transition: width 0.12s cubic-out;
+}
+
+/* The pellet: a sun-yellow disc with two inset rings. */
+meter knob {
+    display: block;
+    position: absolute;
+    top: -6dp;
+    left: 0;
+    width: 22dp;
+    height: 22dp;
+    margin-left: -11dp;
+    border-radius: 11dp;
+    background-color: #FFD23F;
+    decorator: radial-gradient(circle at 35% 30%, #FFF3B0 0%, #FFD23F 45%, #E0A51E 100%);
+    box-shadow: 0 2dp 6dp 0 rgba(5, 11, 26, 55%), inset 0 0 0 2dp rgba(255, 255, 255, 35%), inset 0 0 0 5dp rgba(224, 165, 30, 60%);
+    transform-origin: center;
+    transition: left 0.12s cubic-out, transform 0.2s back-out;
+}
+
+meter chev {
+    display: block;
+    position: absolute;
+    top: -3dp;
+    width: 16dp;
+    height: 16dp;
+    font-family: var(--font-family-icons);
+    font-size: 16dp;
+    line-height: 1;
+    color: var(--text-tertiary);
+    opacity: 0;
+    transition: opacity 0.12s cubic-out;
+}
+
+meter chev.l {
+    left: -18dp;
+    decorator: text("&#xe5cb;" center center);
+}
+
+meter chev.r {
+    right: -18dp;
+    decorator: text("&#xe5cc;" center center);
+}
+
+select-button.number-button:focus-visible meter knob,
+meter.dragging knob {
+    transform: scale(1.15);
+}
+
+select-button.number-button:focus-visible meter chev {
+    opacity: 1;
+}
+
+/* One step: the pellet bumps up and settles (the class lasts one short beat). */
+select-button.number-button meter.stepped knob {
+    transform: scale(1.3);
+    transition: left 0.12s cubic-out, transform 0.08s cubic-out;
+}
+
+select-button.number-button:disabled meter {
+    cursor: default;
+}
+
+/* Narrow panes (high scale, small windows): a shorter meter. */
+@media (max-width: 1100dp) {
+    meter {
+        flex: 0 0 120dp;
+        width: 120dp;
+    }
+}
+
+/* ==== Stepper (5.6): <key/><step-chev.l/><value/><step-chev.r/> ====
+ * A value that steps through a list with Left / Right. The chevrons are always there (dim), so the
+ * row never reads as a read-only one; focus brightens them, and the one at an end of the list fades
+ * out. A click on either steps that way. */
+
+select-button.stepper-button step-chev {
+    display: block;
+    flex: 0 0 22dp;
+    width: 22dp;
+    height: 26dp;
+    margin: 0 -6dp;
+    font-family: var(--font-family-icons);
+    font-size: 22dp;
+    font-weight: normal;
+    line-height: 26dp;
+    text-align: center;
+    color: rgba(var(--color-text-rgb), 45%);
+    transition: color 0.12s cubic-out, transform 0.12s cubic-out;
+    cursor: pointer;
+}
+
+select-button.stepper-button step-chev.l {
+    margin-left: auto;
+    decorator: text("&#xe5cb;" center center);
+}
+
+select-button.stepper-button step-chev.r {
+    decorator: text("&#xe5cc;" center center);
+}
+
+select-button.stepper-button value {
+    margin-left: 0;
+}
+
+select-button.stepper-button:focus-visible step-chev,
+select-button.stepper-button:hover step-chev {
+    color: var(--color-text);
+}
+
+select-button.stepper-button step-chev:hover {
+    transform: scale(1.2);
+}
+
+select-button.stepper-button step-chev.end,
+select-button.stepper-button:focus-visible step-chev.end,
+select-button.stepper-button:hover step-chev.end {
+    color: rgba(var(--color-text-rgb), 15%);
+    transform: none;
+    cursor: default;
+}
+
+select-button.stepper-button:disabled step-chev {
+    color: rgba(var(--color-text-rgb), 15%);
+}
+
+/* ==== Select and dropdown (5.7) ==== */
+
+select-button.dropdown-button icon {
+    display: none;
+}
+
+select-button.dropdown-button dropdown-indicator {
+    display: block;
+    flex: 0 0 18dp;
+    width: 18dp;
+    height: 18dp;
+    margin-left: -4dp;
+    font-family: var(--font-family-icons);
+    font-size: 18dp;
+    font-weight: normal;
+    line-height: 1;
+    color: rgba(var(--color-text-rgb), 70%);
+    transform-origin: center;
+    transition: transform 0.16s cubic-out;
+}
+
+select-button.dropdown-button.expanded dropdown-indicator {
+    transform: rotate(180deg);
+}
+
+/* ==== String input (5.8): the value becomes a field while editing ====
+ * The field is laid over the hidden value instead of joining the row's flex line, so opening it
+ * moves nothing: BaseStringButton::place_input sets top / right / width to the value's box (in
+ * px), and the padding here grows the frame around the text, taken back by the negative margins.
+ * The line height matches the value's, so the text does not jump either. */
+
+select-button {
+    position: relative;
+}
+
+select-button input {
+    position: absolute;
+    box-sizing: content-box;
+    min-width: 64dp;
+    margin: -4dp -7dp 0 0; /* the value's 3dp of ellipsis slack: its text ends 3dp short of its box */
+    padding: 4dp 10dp;
+    line-height: 26dp;
+    border-radius: 10dp;
+    font-family: var(--font-family-body);
+    font-weight: 700;
+    font-size: var(--font-size-xl);
+    text-align: left;
+    color: var(--color-text);
+    background-color: rgba(var(--color-control-rgb), 80%);
+    box-shadow: inset 0 2dp 4dp 0 rgba(5, 11, 26, 60%), 0 0 0 2dp rgb(140, 224, 74);
+    caret-color: var(--color-accent);
+}
+
+select-button input selection {
+    color: var(--color-text);
+    background-color: rgba(var(--color-accent-rgb), 35%);
+}
+
+select-button.invalid input {
+    box-shadow: inset 0 2dp 4dp 0 rgba(5, 11, 26, 60%), 0 0 0 2dp rgb(255, 92, 108);
+}
+
+select-button.color-input value {
+    font-family: var(--font-family-monospace);
+    font-weight: normal;
+    font-size: var(--font-size-sm);
+}
+
+select-button.color-input color-swatch {
+    display: block;
+    flex: 0 0 48dp;
+    width: 48dp;
+    height: 24dp;
+    border-radius: 12dp;
+}

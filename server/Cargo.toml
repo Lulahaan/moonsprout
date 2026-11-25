@@ -1,0 +1,38 @@
+[package]
+name = "mppm-server"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.85"
+# MSRV-aware dependency resolution: Cargo.lock only picks versions that build with rust-version.
+resolver = "3"
+description = "Lobby, signalling and builtin UDP relay server for mppm online play"
+license = "MIT"
+publish = false
+
+[[bin]]
+name = "mppm-server"
+path = "src/main.rs"
+
+[dependencies]
+tokio = { version = "1.47", features = ["rt-multi-thread", "macros", "net", "time", "sync", "signal", "io-util"] }
+axum = { version = "0.8", default-features = false, features = ["http1", "tokio", "ws", "json", "query"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+rand = { version = "0.9", default-features = false, features = ["os_rng", "std"] }
+hmac = "0.12"
+sha1 = "0.10"
+base64 = "0.22"
+clap = { version = "4.5", features = ["derive", "env"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", default-features = false, features = ["fmt", "env-filter", "std"] }
+thiserror = "2"
+anyhow = "1"
+
+[dev-dependencies]
+tokio-tungstenite = "0.29"
+futures-util = { version = "0.3", default-features = false, features = ["sink", "std"] }
+
+[profile.release]
+lto = "thin"
+codegen-units = 1
+strip = "debuginfo"

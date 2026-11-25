@@ -1,0 +1,148 @@
+diff --git a/lib/aurora.cpp b/lib/aurora.cpp
+index 77dbe12..57b25f1 100644
+--- a/lib/aurora.cpp
++++ b/lib/aurora.cpp
+@@ -345,8 +345,24 @@ void end_frame(bool present = true) noexcept {
+         set_present_viewport(pass, viewport, webgpu::g_graphicsConfig.surfaceConfiguration.width,
+                              webgpu::g_graphicsConfig.surfaceConfiguration.height);
+ 
++        // mppm: the UI frame covers the whole surface (the scene is already inside it when it is
++        // not an overlay).
++        const gfx::Viewport surfaceViewport{
++            .left = 0.f,
++            .top = 0.f,
++            .width = static_cast<float>(webgpu::g_graphicsConfig.surfaceConfiguration.width),
++            .height = static_cast<float>(webgpu::g_graphicsConfig.surfaceConfiguration.height),
++            .znear = 0.f,
++            .zfar = 1.f,
++        };
++        if (rmlBindGroup && !rmlOverlay) {
++          set_present_viewport(pass, surfaceViewport, webgpu::g_graphicsConfig.surfaceConfiguration.width,
++                               webgpu::g_graphicsConfig.surfaceConfiguration.height);
++        }
+         pass.Draw(3);
+         if (rmlBindGroup && rmlOverlay) {
++          set_present_viewport(pass, surfaceViewport, webgpu::g_graphicsConfig.surfaceConfiguration.width,
++                               webgpu::g_graphicsConfig.surfaceConfiguration.height);
+           pass.SetPipeline(webgpu::g_CopyPremultipliedAlphaPipeline);
+           pass.SetBindGroup(0, rmlBindGroup, 0, nullptr);
+           pass.Draw(3);
+diff --git a/lib/rmlui.cpp b/lib/rmlui.cpp
+index c82409d..931f037 100644
+--- a/lib/rmlui.cpp
++++ b/lib/rmlui.cpp
+@@ -47,17 +47,10 @@ WebGPURenderInterface* get_render_interface() noexcept {
+   return static_cast<WebGPURenderInterface*>(Backend::GetRenderInterface()); // NOLINT(*-pro-type-static-cast-downcast)
+ }
+ 
+-Rml::Vector2i dimensions_from_viewport(const gfx::Viewport& viewport) noexcept {
+-  return {
+-      std::max(1, static_cast<int>(std::lround(viewport.width))),
+-      std::max(1, static_cast<int>(std::lround(viewport.height))),
+-  };
+-}
+-
++// mppm: the UI covers the whole window, not just the rectangle the game picture is presented in,
++// so a pillarboxed or letterboxed picture (a locked aspect ratio) keeps the UI at the window's size.
+ Rml::Vector2i presentation_dimensions_from_window_size(const AuroraWindowSize& size) noexcept {
+-  const auto viewport =
+-      webgpu::calculate_present_viewport(size.native_fb_width, size.native_fb_height, size.fb_width, size.fb_height);
+-  return dimensions_from_viewport(viewport);
++  return {std::max(1, static_cast<int>(size.native_fb_width)), std::max(1, static_cast<int>(size.native_fb_height))};
+ }
+ 
+ void sync_context_metrics(Rml::Vector2i dimensions) noexcept {
+@@ -455,7 +448,10 @@ RecordedFrame record_frame(const webgpu::Viewport& presentViewport) noexcept {
+   }
+ 
+   ZoneScoped;
+-  const Rml::Vector2i dim = dimensions_from_viewport(presentViewport);
++  const Rml::Vector2i dim{
++      std::max(1, static_cast<int>(webgpu::g_graphicsConfig.surfaceConfiguration.width)),
++      std::max(1, static_cast<int>(webgpu::g_graphicsConfig.surfaceConfiguration.height)),
++  };
+   ensure_render_target(dim);
+   if (!s_renderTarget.view) {
+     return {};
+@@ -468,7 +464,7 @@ RecordedFrame record_frame(const webgpu::Viewport& presentViewport) noexcept {
+   auto* renderInterface = get_render_interface();
+   renderInterface->SetWindowSize(g_context->GetDimensions());
+   renderInterface->BeginFrame(s_renderTarget, webgpu::present_source(),
+-                              needsBackdrop ? BaseLayerContent::Scene : BaseLayerContent::Transparent);
++                              needsBackdrop ? BaseLayerContent::Scene : BaseLayerContent::Transparent, presentViewport);
+ 
+   Backend::BeginFrame();
+   g_context->Render();
+diff --git a/lib/rmlui/WebGPURenderInterface.cpp b/lib/rmlui/WebGPURenderInterface.cpp
+index 8901dc5..b5601aa 100644
+--- a/lib/rmlui/WebGPURenderInterface.cpp
++++ b/lib/rmlui/WebGPURenderInterface.cpp
+@@ -867,8 +867,15 @@ void WebGPURenderInterface::EnsureFrameRenderingStarted() {
+   }
+ 
+   const auto seedBindGroup = texture_bind_group_ref(m_frameSeedView);
++  // The scene may cover only part of the frame (pillarbox or letterbox): it is drawn into that
++  // rectangle and the rest stays the cleared black. The area resampler works in frame pixels, so a
++  // partial scene uses the bilinear path.
++  const bool partialScene = m_sceneViewport.width > 0.f && m_sceneViewport.height > 0.f &&
++                            !(m_sceneViewport.left == 0.f && m_sceneViewport.top == 0.f &&
++                              m_sceneViewport.width == static_cast<float>(m_frameSize.width) &&
++                              m_sceneViewport.height == static_cast<float>(m_frameSize.height));
+   const auto seedUniformRange = gfx::push_uniform(SeedResampleUniformBlock{
+-      .samplerMode = sampler_mode(),
++      .samplerMode = partialScene ? 0u : sampler_mode(),
+       .frameWidth = static_cast<float>(m_frameSize.width),
+       .frameHeight = static_cast<float>(m_frameSize.height),
+   });
+@@ -876,12 +883,18 @@ void WebGPURenderInterface::EnsureFrameRenderingStarted() {
+   if (m_layers[0].multisampleView) {
+     BeginLayerPass(0, wgpu::LoadOp::Clear, "RmlUi base layer seed pass", true);
+     ApplyFullFrameScissor();
++    if (partialScene) {
++      gfx::set_viewport(m_sceneViewport);
++    }
+     DrawFullscreenTexture(seedBindGroup, seed_resample_pipeline(m_renderTargetFormat, LayerSampleCount, true),
+                           uniform_bind_group_ref(), seedUniformRange);
+     BeginLayerPass(0, wgpu::LoadOp::Load, "RmlUi base layer pass");
+   } else {
+     BeginRenderTargetPass(m_layers[0].view, wgpu::LoadOp::Clear, "RmlUi game frame copy pass");
+     ApplyFullFrameScissor();
++    if (partialScene) {
++      gfx::set_viewport(m_sceneViewport);
++    }
+     DrawFullscreenTexture(seedBindGroup, seed_resample_pipeline(m_renderTargetFormat, 1, false),
+                           uniform_bind_group_ref(), seedUniformRange);
+     BeginLayerPass(0, wgpu::LoadOp::Load, "RmlUi base layer pass", true);
+@@ -1238,8 +1251,9 @@ size_t WebGPURenderInterface::RenderFilters(Rml::Span<const Rml::CompiledFilterH
+ 
+ void WebGPURenderInterface::BeginFrame(const webgpu::TextureWithSampler& target,
+                                        const webgpu::TextureWithSampler& sceneTarget,
+-                                       BaseLayerContent baseLayerContent) {
++                                       BaseLayerContent baseLayerContent, const gfx::Viewport& sceneViewport) {
+   m_frameSeedView = sceneTarget.view;
++  m_sceneViewport = sceneViewport;
+   m_frameSize = target.size;
+   m_viewport = {
+       .left = 0.f,
+diff --git a/lib/rmlui/WebGPURenderInterface.hpp b/lib/rmlui/WebGPURenderInterface.hpp
+index b24ec60..120bffb 100644
+--- a/lib/rmlui/WebGPURenderInterface.hpp
++++ b/lib/rmlui/WebGPURenderInterface.hpp
+@@ -131,6 +131,8 @@ private:
+   wgpu::Extent3D m_clipMaskStencilSize{};
+   wgpu::Extent3D m_frameSize{};
+   gfx::Viewport m_viewport{};
++  // Where the scene sits in the frame (mppm: the UI covers the whole window, the scene may not).
++  gfx::Viewport m_sceneViewport{};
+ 
+   Rml::TextureHandle m_nullTexture = 0;
+   Rml::CompiledGeometryHandle m_clipResetGeometry = 0;
+@@ -219,7 +221,7 @@ public:
+   void ReleaseShader(Rml::CompiledShaderHandle shader) override;
+ 
+   void BeginFrame(const webgpu::TextureWithSampler& target, const webgpu::TextureWithSampler& scene_target,
+-                  BaseLayerContent baseLayerContent);
++                  BaseLayerContent baseLayerContent, const gfx::Viewport& sceneViewport);
+   bool EndFrame();
+   void SetWindowSize(const Rml::Vector2i& window_size) { m_windowSize = window_size; }
+   void SetRenderTargetFormat(wgpu::TextureFormat render_target_format) { m_renderTargetFormat = render_target_format; }

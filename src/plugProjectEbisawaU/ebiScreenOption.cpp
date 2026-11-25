@@ -1,0 +1,820 @@
+#include "ebi/Screen/TOption.h"
+#include "ebi/E2DGraph.h"
+#include "Game/Data.h"
+#include "og/newScreen/ogUtil.h"
+#include "P2Macros.h"
+#include "System.h"
+#include "PSSystem/PSSystemIF.h"
+#include "SoundID.h"
+
+/**
+ * @note Address: N/A
+ * @note Size: 0xE4
+ */
+static void _Print(char* name, ...)
+{
+	OSReport("ebiScreenOption");
+}
+
+using namespace Game::CommonSaveData;
+
+namespace ebi {
+namespace Screen {
+
+/**
+ * @note Address: 0x803CADC8
+ * @note Size: 0x100
+ */
+void TOptionParameter::loadRam()
+{
+	Mgr* mgr    = sys->mPlayData;
+	mIsRubyFont = mgr->mIsRubyFont;
+	mIsRumble   = mgr->mIsRumble;
+	switch (mgr->mSoundMode) {
+	case Mgr::SM_Mono:
+		if (true) {
+			mSoundMode = Mgr::SM_Mono;
+		}
+		break;
+	case Mgr::SM_Stereo:
+		mSoundMode = Mgr::SM_Stereo;
+		break;
+	case Mgr::SM_SurroundSound:
+		mSoundMode = Mgr::SM_SurroundSound;
+		break;
+	}
+	mBgmVolume    = (f32)mgr->mMusicVol / 255.0f * 10.0f;
+	mSeVolume     = (f32)mgr->mSeVol / 255.0f * 10.0f;
+	mUseDeflicker = mgr->mUseDeflicker;
+#if defined(VERSION_PAL)
+	switch (mgr->mLanguage) {
+	case System::LANG_English:
+		mLanguage = 0;
+		break;
+	case System::LANG_Italian:
+		mLanguage = 1;
+		break;
+	case System::LANG_French:
+		mLanguage = 2;
+		break;
+	case System::LANG_Spanish:
+		mLanguage = 3;
+		break;
+	case System::LANG_German:
+		mLanguage = 4;
+		break;
+	}
+#endif
+}
+
+/**
+ * @note Address: 0x803CAEC8
+ * @note Size: 0xFC
+ */
+void TOptionParameter::saveRam()
+{
+	Mgr* mgr         = sys->mPlayData;
+	mgr->mIsRubyFont = mIsRubyFont;
+	mgr->mIsRumble   = mIsRumble;
+	switch (mSoundMode) {
+	case Mgr::SM_Mono:
+		mgr->setSoundModeMono();
+		break;
+	case Mgr::SM_Stereo:
+		mgr->setSoundModeStereo();
+		break;
+	case Mgr::SM_SurroundSound:
+		mgr->setSoundModeSurround();
+		break;
+	}
+	mgr->setBgmVolume(mBgmVolume / 10.0f);
+	mgr->setSeVolume(mSeVolume / 10.0f);
+	mgr->setDeflicker(mUseDeflicker); PC_ONLY(p2_host_game_options_changed(mgr->mSoundMode, mgr->mMusicVol, mgr->mSeVol, mgr->mIsRumble);) // host: tell the launcher's config (SETTINGS.md 5.1)
+#if defined(VERSION_PAL)
+	switch (mLanguage) {
+	case 0:
+		mgr->setLanguage(System::LANG_English);
+		break;
+	case 1:
+		mgr->setLanguage(System::LANG_Italian);
+		break;
+	case 2:
+		mgr->setLanguage(System::LANG_French);
+		break;
+	case 3:
+		mgr->setLanguage(System::LANG_Spanish);
+		break;
+	case 4:
+		mgr->setLanguage(System::LANG_German);
+		break;
+	}
+#endif
+}
+
+/**
+ * @note Address: 0x803CAFC4
+ * @note Size: 0x24
+ */
+void TOptionParameter::initParamForTest()
+{
+	mIsRubyFont   = false;
+	mIsRumble     = false;
+	mSoundMode    = Mgr::SM_Mono;
+	mBgmVolume    = 1;
+	mSeVolume     = 1;
+	mUseDeflicker = false;
+}
+
+/**
+ * @note Address: 0x803CAFE8
+ * @note Size: 0x8D4
+ */
+void TOption::doSetArchive(JKRArchive* archive)
+{
+	sys->heapStatusStart("Screen::TOption::setArchive", nullptr);
+
+	sys->heapStatusStart("Screen::TOption::set_blo_P2DScreen::Mgr", nullptr);
+	mMainScreen = new P2DScreen::Mgr_tuning;
+	mMainScreen->set("option.blo", 0x1100000, archive);
+	sys->heapStatusEnd("Screen::TOption::set_blo_P2DScreen::Mgr");
+#if defined(VERSION_JP)
+	mPaneRubyYes = (J2DTextBox*)E2DScreen_searchAssert(mMainScreen, MC64('Tfri_y', 0x546672695F79));
+	mPaneRubyNo  = (J2DTextBox*)E2DScreen_searchAssert(mMainScreen, MC64('Tfri_n', 0x546672695F6E));
+#endif
+#if defined(VERSION_PAL)
+	mPaneLanguage[0] = E2DScreen_searchAssert(mMainScreen, 'Pe');
+	mPaneLanguage[1] = E2DScreen_searchAssert(mMainScreen, 'Pi');
+	mPaneLanguage[2] = E2DScreen_searchAssert(mMainScreen, 'Pf');
+	mPaneLanguage[3] = E2DScreen_searchAssert(mMainScreen, 'Ps');
+	mPaneLanguage[4] = E2DScreen_searchAssert(mMainScreen, 'Pg');
+#endif
+	mPaneRumbleYes    = (J2DTextBox*)E2DScreen_searchAssert(mMainScreen, MC64('Tsin_y', 0x5473696E5F79));
+	mPaneRumbleNo     = (J2DTextBox*)E2DScreen_searchAssert(mMainScreen, MC64('Tsin_n', 0x5473696E5F6E));
+	mPaneSoundType[0] = (J2DTextBox*)E2DScreen_searchAssert(mMainScreen, 'Tmon');
+	mPaneSoundType[1] = (J2DTextBox*)E2DScreen_searchAssert(mMainScreen, 'Tste');
+	mPaneSoundType[2] = (J2DTextBox*)E2DScreen_searchAssert(mMainScreen, 'Tsro');
+	mPaneDeflickerYes = (J2DTextBox*)E2DScreen_searchAssert(mMainScreen, MC64('Tdef_y', 0x546465665F79));
+	mPaneDeflickerNo  = (J2DTextBox*)E2DScreen_searchAssert(mMainScreen, MC64('Tdef_n', 0x546465665F6E));
+	for (int i = 0; i < 10; i++) {
+		mPaneBgmVolume[i] = E2DScreen_searchAssert(mMainScreen, MC64('Pbgmm00', 0x5062676D6D3030) + i);
+		mPaneSfxVolume[i] = E2DScreen_searchAssert(mMainScreen, MC64('Psem00', 0x5073656D3030) + i);
+	}
+	mDeflickerScreen = E2DScreen_searchAssert(mMainScreen, 'NDEF');
+	mOptionPanes[7]  = E2DScreen_searchAssert(mMainScreen, MC64('Tdefmg0', 0x546465666D6730));
+	mOptionPanes[8]  = E2DScreen_searchAssert(mMainScreen, MC64('Tdefmg0s', 0x546465666D673073));
+	mOptionPanes[0]  = E2DScreen_searchAssert(mMainScreen, MC64('Ngrpfri', 0x4E677270667269));
+	mOptionPanes[1]  = E2DScreen_searchAssert(mMainScreen, MC64('Ngrpsin', 0x4E67727073696E));
+	mOptionPanes[2]  = E2DScreen_searchAssert(mMainScreen, MC64('Ngrpsou', 0x4E677270736F75));
+	mOptionPanes[3]  = E2DScreen_searchAssert(mMainScreen, MC64('Ngrpbgm', 0x4E67727062676D));
+	mOptionPanes[4]  = E2DScreen_searchAssert(mMainScreen, MC64('Ngrpse', 0x4E6772707365));
+	mOptionPanes[5]  = E2DScreen_searchAssert(mMainScreen, MC64('Ngrpdef', 0x4E677270646566));
+	mOptionPanes[6]  = E2DScreen_searchAssert(mMainScreen, MC64('Ngrpsav', 0x4E677270736176));
+	mOptionPanes[9]  = E2DScreen_searchAssert(mMainScreen, MC64('Wselctw', 0x5773656C637477));
+
+	mButtonPaneList[0] = E2DScreen_searchAssert(mMainScreen, MC64('Wsetfri', 0x57736574667269));
+	mButtonPaneList[1] = E2DScreen_searchAssert(mMainScreen, MC64('Wsetsin', 0x5773657473696E));
+	mButtonPaneList[2] = E2DScreen_searchAssert(mMainScreen, MC64('Wsetsro', 0x5773657473726F));
+	mButtonPaneList[3] = E2DScreen_searchAssert(mMainScreen, MC64('Wsetbgm', 0x5773657462676D));
+	mButtonPaneList[4] = E2DScreen_searchAssert(mMainScreen, MC64('Wsetse', 0x577365747365));
+	mButtonPaneList[5] = E2DScreen_searchAssert(mMainScreen, MC64('Wsetdef', 0x57736574646566));
+	mButtonPaneList[6] = E2DScreen_searchAssert(mMainScreen, MC64('Wsetsav', 0x57736574736176));
+
+	sys->heapStatusStart("Screen::TOption::new_ogCallBack", nullptr);
+	E2DPane_setTreeCallBackMessage(mMainScreen, mMainScreen);
+	sys->heapStatusEnd("Screen::TOption::new_ogCallBack");
+	mMainScreen->addCallBackPane(mMainScreen, &mAnimOpenScreen);
+	mMainScreen->addCallBackPane(mMainScreen, &mAnimCalc);
+	mAnimOpenScreen.loadAnm("option.bck", archive, 20, 41);
+
+#if defined(VERSION_JP)
+	mMainScreen->addCallBack(MC64('Pfri_yc', 0x506672695F7963), &mButtonPuruAnim[7]);
+	mMainScreen->addCallBack(MC64('Pfri_nc', 0x506672695F6E63), &mButtonPuruAnim[8]);
+#endif
+#if defined(VERSION_PAL)
+	mMainScreen->addCallBack(MC64('Plang01', 0x506C616E673031), &mButtonPuruAnim[7]);
+	mMainScreen->addCallBack(MC64('Plang02', 0x506C616E673032), &mButtonPuruAnim[11]);
+	mMainScreen->addCallBack(MC64('Plang03', 0x506C616E673033), &mButtonPuruAnim[9]);
+	mMainScreen->addCallBack(MC64('Plang04', 0x506C616E673034), &mButtonPuruAnim[10]);
+	mMainScreen->addCallBack(MC64('Plang05', 0x506C616E673035), &mButtonPuruAnim[8]);
+#endif
+	mMainScreen->addCallBack(MC64('Psin_yc', 0x5073696E5F7963), &mButtonPuruAnim[0]);
+	mMainScreen->addCallBack(MC64('Psin_nc', 0x5073696E5F6E63), &mButtonPuruAnim[1]);
+	mMainScreen->addCallBack(MC64('Pmonc', 0x506D6F6E63), &mButtonPuruAnim[2]);
+	mMainScreen->addCallBack(MC64('Pstec', 0x5073746563), &mButtonPuruAnim[3]);
+	mMainScreen->addCallBack(MC64('Psroc', 0x5073726F63), &mButtonPuruAnim[4]);
+	mMainScreen->addCallBack(MC64('Pdef_yc', 0x506465665F7963), &mButtonPuruAnim[5]);
+	mMainScreen->addCallBack(MC64('Pdef_nc', 0x506465665F6E63), &mButtonPuruAnim[6]);
+
+	for (int i = 0; i < 10; i++) {
+		mMainScreen->addCallBack(MC64('Pbgmm00', 0x5062676D6D3030) + i, &mBgmSelPuruAnimA[i]);
+		mMainScreen->addCallBack(MC64('Pbgmm00c', 0x5062676D6D303063) + i * 0x100, &mBgmSelPuruAnimB[i]);
+		mMainScreen->addCallBack(MC64('Psem00', 0x5073656D3030) + i, &mSfxSelPuruAnimA[i]);
+		mMainScreen->addCallBack(MC64('Psem00c', 0x5073656D303063) + i * 0x100, &mSfxSelPuruAnimB[i]);
+	}
+
+	mFontColorActiveSel.setColors((J2DTextBox*)E2DScreen_searchAssert(mMainScreen, MC64('Tsin_y', 0x5473696E5F79)));
+	mFontColorInactiveSel.setColors((J2DTextBox*)E2DScreen_searchAssert(mMainScreen, MC64('Thscolor', 0x546873636F6C6F72)));
+
+	mBlinkColor.set((J2DTextBox*)E2DScreen_searchAssert(mMainScreen, MC64('Tsin_y', 0x5473696E5F79)),
+	                (J2DTextBox*)E2DScreen_searchAssert(mMainScreen, MC64('Tscolor', 0x5473636F6C6F72)));
+
+	mBlinkColor.enable();
+	mMainScreen->addCallBackPane(nullptr, &mBlinkColor);
+	mMainScreen->addCallBackPane(nullptr, &mBlinkAlphaA);
+	mBlinkAlphaA.enable();
+	J2DPane* Nbotn = E2DScreen_searchAssert(mMainScreen, MC64('Nbotn', 0x4E626F746E));
+	mMainScreen->addCallBackPane(Nbotn, &mBlinkAlphaB);
+	E2DPane_setTreeInfluencedAlpha(Nbotn, true);
+	mMainScreen->addCallBack(MC64('Wselctw', 0x5773656C637477), &mWindowCursor);
+	E2DPane_setTreeShow(mMainScreen);
+	E2DScreen_searchAssert(mMainScreen, MC64('Ngrpwset', 0x4E67727077736574))->setAlpha(0);
+	for (int i = 0; i < 7; i++) {
+		E2DPane_setTreeInfluencedAlpha(mButtonPaneList[i], true);
+		mButtonPaneList[i]->setAlpha(0);
+	}
+	E2DPane_setTreeHide(E2DScreen_searchAssert(mMainScreen, 'DATA'));
+	E2DPane_setTreeInfluencedAlpha(mDeflickerScreen, true);
+	mDeflickerScreen->setAlpha(0);
+
+	sys->heapStatusEnd("Screen::TOption::setArchive");
+}
+
+/**
+ * @note Address: 0x803CB8BC
+ * @note Size: 0x134
+ */
+void TOption::doOpenScreen(ArgOpen*)
+{
+	JGeometry::TBox2f bounds;
+
+	mAnimOpenScreen.play(60.0f * sys->mDeltaTime, J3DAA_UNKNOWN_0, true);
+	setOptionParamToScreen_();
+
+	mCounterOpen.setValue(E2DFader::kFadeTime);
+
+	mState = 1;
+#if defined(VERSION_JP) || defined(VERSION_PAL)
+	mCurrMainSelection = 0;
+	mNextSelection     = 0;
+#else
+	mCurrMainSelection = 1;
+	mNextSelection     = 1;
+	mOptionPanes[0]->hide();
+#endif
+	bounds = *mButtonPaneList[mCurrMainSelection]->getBounds();
+
+	mWindowCursor.mCounter.setValue(0.1f);
+
+	mWindowCursor.mBounds1    = bounds;
+	mWindowCursor.mBounds2    = bounds;
+	mWindowCursor.mIsEnabled  = true;
+	mWindowCursor.mWindowPane = mOptionPanes[mCurrMainSelection];
+	initScreen_();
+}
+
+/**
+ * @note Address: 0x803CB9F0
+ * @note Size: 0x4C
+ */
+void TOption::doCloseScreen(ArgClose*)
+{
+	mCounterOpen.setValue(E2DFader::kFadeTime);
+	mState = 2;
+}
+
+/**
+ * @note Address: 0x803CBA3C
+ * @note Size: 0x24
+ */
+void TOption::doInitWaitState()
+{
+	mAnimOpenScreen.stop();
+}
+
+/**
+ * @note Address: 0x803CBA60
+ * @note Size: 0x84
+ */
+bool TOption::doUpdateStateOpen()
+{
+	if (mState != 0) {
+		mCounterOpen.update();
+	}
+	mMainScreen->update();
+
+#if defined(VERSION_US_DEMO1) // demo
+	mOptionPanes[0]->hide();
+#endif
+
+	if (mAnimOpenScreen.isFinish() && mCounterOpen.isZero()) {
+		return true;
+	}
+	return false;
+}
+
+/**
+ * @note Address: 0x803CBAE4
+ * @note Size: 0x9B4
+ */
+bool TOption::doUpdateStateWait()
+{
+	setOptionParamToScreen_();
+	mMainScreen->update();
+	if (mEnabled) {
+		mInputMainSel.update();
+		if (mInputMainSel.mSelectionChanged) {
+			mNextSelection = mInputMainSel.mLastIndex;
+#if !defined(VERSION_JP) && !defined(VERSION_PAL)
+			if (mCurrMainSelection == 0) {
+				mCurrMainSelection = 1;
+			}
+#endif
+
+			if (mNextSelection != mCurrMainSelection) {
+				JGeometry::TBox2f bounds;
+				bounds                               = *mButtonPaneList[mCurrMainSelection]->getBounds();
+				mWindowCursor.mBounds1               = mWindowCursor.mBounds2;
+				mWindowCursor.mBounds2               = bounds;
+				mWindowCursor.mCounter.mCurrentValue = mWindowCursor.mCounter.mMaxValue;
+				mWindowCursor.mScaleMgr.up(0.1f, 30.0f, 0.6f, 0.0f);
+				mWindowCursor.mWindowPane = mOptionPanes[mCurrMainSelection];
+				PSSystem::spSysIF->playSystemSe(PSSE_SY_MENU_CURSOR, 0);
+			}
+
+			if (mCurrMainSelection == 6) {
+				mBlinkAlphaB.startToward0();
+			} else if (mNextSelection == 6) {
+				mBlinkAlphaB.disable();
+			}
+		}
+	}
+	mExitStatus = OptionState_NULL;
+
+	if (mEnabled && mWindowCursor.mCounter.isZero()) {
+		if (mController->getButtonDown() & Controller::PRESS_B) {
+			mExitStatus = OptionState_Exit;
+			PSSystem::spSysIF->playSystemSe(PSSE_SY_MENU_CANCEL, 0);
+		}
+		switch (mCurrMainSelection) {
+#if defined(VERSION_JP)
+		case 0:
+			if (mController->isMoveRight()) {
+				if (mOptionParamA.mIsRubyFont == true) {
+					mOptionParamA.mIsRubyFont = false;
+					mButtonPuruAnim[8].mScaleMgr.up(0.2f, 30.0f, 0.6f, 0.0f);
+					mExitStatus = OptionState_Unk1;
+					PSSystem::spSysIF->playSystemSe(PSSE_SY_SOUND_CONFIG, 0);
+				}
+			} else if (mController->isMoveLeft()) {
+				if (!mOptionParamA.mIsRubyFont) {
+					mOptionParamA.mIsRubyFont = true;
+					mButtonPuruAnim[7].mScaleMgr.up(0.2f, 30.0f, 0.6f, 0.0f);
+					mExitStatus = OptionState_Unk1;
+					PSSystem::spSysIF->playSystemSe(PSSE_SY_SOUND_CONFIG, 0);
+				}
+			}
+			break;
+
+#else
+		case 0: // language
+#if defined(VERSION_PAL)
+			mInputLanguage.update();
+			if (mInputLanguage.mSelectionChanged) {
+				mExitStatus = OptionState_Unk8;
+				int index;
+				switch (mOptionParamA.mLanguage) {
+				case 0:
+					index = 7;
+					break;
+				case 1:
+					index = 11;
+					break;
+				case 2:
+					index = 9;
+					break;
+				case 3:
+					index = 10;
+					break;
+				case 4:
+					index = 8;
+					break;
+				}
+				mButtonPuruAnim[index].mScaleMgr.up(0.2f, 30.0f, 0.6f, 0.0f);
+				PSSystem::spSysIF->playSystemSe(PSSE_SY_SOUND_CONFIG, 0);
+			}
+#endif
+			break;
+#endif
+
+		case 1: // Rumble
+			if (mController->isMoveRight()) {
+				if (mOptionParamA.mIsRumble == true) {
+					mOptionParamA.mIsRumble = false;
+					mButtonPuruAnim[1].mScaleMgr.up(0.2f, 30.0f, 0.6f, 0.0f);
+					mExitStatus = OptionState_SelRumble;
+					PSSystem::spSysIF->playSystemSe(PSSE_SY_SOUND_CONFIG, 0);
+				}
+			} else if (mController->isMoveLeft()) {
+				if (!mOptionParamA.mIsRumble) {
+					mOptionParamA.mIsRumble = true;
+					mButtonPuruAnim[0].mScaleMgr.up(0.2f, 30.0f, 0.6f, 0.0f);
+					mExitStatus = OptionState_SelRumble;
+					PSSystem::spSysIF->playSystemSe(PSSE_SY_SOUND_CONFIG, 0);
+				}
+			}
+			break;
+
+		case 2: // Sound Mode
+			mInputStereo.update();
+			if (mInputStereo.mSelectionChanged) {
+				mExitStatus = OptionState_SelSoundMode;
+				switch (mOptionParamA.mSoundMode) {
+				case 0:
+					mButtonPuruAnim[2].mScaleMgr.up(0.2f, 30.0f, 0.6f, 0.0f);
+					PSSystem::spSysIF->playSystemSe(PSSE_SY_SOUND_CONFIG, 0);
+					break;
+				case 1:
+					mButtonPuruAnim[3].mScaleMgr.up(0.2f, 30.0f, 0.6f, 0.0f);
+					PSSystem::spSysIF->playSystemSe(PSSE_SY_SOUND_CONFIG, 0);
+					break;
+				case 2:
+					mButtonPuruAnim[4].mScaleMgr.up(0.2f, 30.0f, 0.6f, 0.0f);
+					PSSystem::spSysIF->playSystemSe(PSSE_SY_SOUND_CONFIG, 0);
+					break;
+				}
+			}
+			break;
+
+		case 3: // music volume
+			mInputBgmVol.update();
+			if (mInputBgmVol.mSelectionChanged) {
+				mExitStatus = OptionState_SelBgmVol;
+				int prev    = mOptionParamA.mBgmVolume;
+				if (prev != 0) {
+					mBgmSelPuruAnimA[prev - 1].mScaleMgr.up(0.5f, 30.0f, 0.6f, 0.0f);
+					mBgmSelPuruAnimB[mOptionParamA.mBgmVolume - 1].mScaleMgr.up(0.5f, 30.0f, 0.6f, 0.0f);
+				}
+				for (int i = 0; i < mOptionParamA.mBgmVolume - 1; i++) {
+					mPaneBgmVolume[i]->setAlpha(255);
+				}
+				PSSystem::spSysIF->playSystemSe(PSSE_SY_SOUND_CONFIG, 0);
+			}
+			break;
+
+		case 4: // sound volume
+			mInputSfxVol.update();
+			if (mInputSfxVol.mSelectionChanged) {
+				mExitStatus = OptionState_SelSfxVol;
+				int prev    = mOptionParamA.mSeVolume;
+				if (prev != 0) {
+					mSfxSelPuruAnimA[prev - 1].mScaleMgr.up(0.5f, 30.0f, 0.6f, 0.0f);
+					mSfxSelPuruAnimB[mOptionParamA.mSeVolume - 1].mScaleMgr.up(0.5f, 30.0f, 0.6f, 0.0f);
+				}
+				PSSystem::spSysIF->playSystemSe(PSSE_SY_SOUND_CONFIG, 0);
+			}
+			break;
+
+		case 5: // Deflicker
+			if (mController->isMoveRight()) {
+				if (mOptionParamA.mUseDeflicker == true) {
+					mOptionParamA.mUseDeflicker = false;
+					mButtonPuruAnim[6].mScaleMgr.up(0.2f, 30.0f, 0.6f, 0.0f);
+					PSSystem::spSysIF->playSystemSe(PSSE_SY_SOUND_CONFIG, 0);
+					mExitStatus = OptionState_SelDeflicker;
+				}
+			} else if (mController->isMoveLeft()) {
+				if (!mOptionParamA.mUseDeflicker) {
+					mOptionParamA.mUseDeflicker = true;
+					mButtonPuruAnim[5].mScaleMgr.up(0.2f, 30.0f, 0.6f, 0.0f);
+					PSSystem::spSysIF->playSystemSe(PSSE_SY_SOUND_CONFIG, 0);
+					mExitStatus = OptionState_SelDeflicker;
+				}
+			}
+			break;
+
+		case 6: // Save Game
+			if (mController->getButtonDown() & Controller::PRESS_A) {
+				mExitStatus = OptionState_SelSaveGame;
+				PSSystem::spSysIF->playSystemSe(PSSE_SY_MENU_DECIDE, 0);
+			}
+			break;
+		}
+	}
+
+	u64 mesg;
+	if (mOptionParamA.mUseDeflicker == true) {
+		mesg = MC64('8335_00', 0x383333355F3030); // When On
+	} else {
+		mesg = MC64('8336_00', 0x383333365F3030); // When Off
+	}
+
+	mOptionPanes[7]->setMsgID(mesg);
+	mOptionPanes[8]->setMsgID(mesg);
+	if (mCurrMainSelection == 5) {
+
+		for (int i = 0; i < 7; i++) {
+			if (i != 5 && i != 6) {
+				mOptionPanes[i]->hide();
+			}
+		}
+		mDeflickerScreen->setAlpha((1.0f - mWindowCursor.mCounter.getRatio()) * 255.0f);
+	} else if (mNextSelection == 5) {
+
+		for (int i = 0; i < 7; i++) {
+			if (i != 5) {
+				mOptionPanes[i]->show();
+			}
+		}
+		mDeflickerScreen->setAlpha(mWindowCursor.mCounter.getRatio() * 255.0f);
+	} else {
+		mDeflickerScreen->setAlpha(0);
+	}
+
+#if defined(VERSION_JP)
+	mPaneRubyYes->updateScale(mButtonPuruAnim[7].mScale);
+	mPaneRubyNo->updateScale(mButtonPuruAnim[8].mScale);
+#endif
+#if defined(VERSION_PAL)
+	mPaneLanguage[0]->updateScale(mButtonPuruAnim[7].mScale);
+	mPaneLanguage[1]->updateScale(mButtonPuruAnim[11].mScale);
+	mPaneLanguage[2]->updateScale(mButtonPuruAnim[9].mScale);
+	mPaneLanguage[3]->updateScale(mButtonPuruAnim[10].mScale);
+	mPaneLanguage[4]->updateScale(mButtonPuruAnim[8].mScale);
+#endif
+	mPaneRumbleYes->updateScale(mButtonPuruAnim[0].mScale);
+	mPaneRumbleNo->updateScale(mButtonPuruAnim[1].mScale);
+	mPaneSoundType[0]->updateScale(mButtonPuruAnim[2].mScale);
+	mPaneSoundType[1]->updateScale(mButtonPuruAnim[3].mScale);
+	mPaneSoundType[2]->updateScale(mButtonPuruAnim[4].mScale);
+	mPaneDeflickerYes->updateScale(mButtonPuruAnim[5].mScale);
+	mPaneDeflickerNo->updateScale(mButtonPuruAnim[6].mScale);
+
+#if defined(VERSION_US_DEMO1) // demo
+	mOptionPanes[0]->hide();
+#endif
+
+	return false;
+}
+
+/**
+ * @note Address: 0x803CC498
+ * @note Size: 0x74
+ */
+bool TOption::doUpdateStateClose()
+{
+	mMainScreen->update();
+	if (mState != 0) {
+		mCounterOpen.update();
+	}
+
+	if (mCounterOpen.isZero()) {
+		return true;
+	}
+	return false;
+}
+
+/**
+ * @note Address: 0x803CC50C
+ * @note Size: 0x244
+ */
+void TOption::doDraw()
+{
+	J2DPerspGraph* graf;
+	Graphics* gfx = sys->mGfx;
+	graf          = &gfx->mPerspGraph;
+	graf->setPort();
+	mMainScreen->draw(*gfx, *graf);
+
+	if (mState) {
+		graf = &sys->mGfx->mPerspGraph;
+		graf->setPort();
+		JUtility::TColor color(mColor);
+		switch (mState) {
+		case 1:
+			color.a = mAlpha * mCounterOpen.getRatio();
+			break;
+		case 2:
+
+			color.a = mAlpha * (1.0f - mCounterOpen.getRatio());
+			break;
+		}
+		graf->setColor(color);
+		u32 y    = System::getRenderModeObj()->efbHeight;
+		u32 x    = System::getRenderModeObj()->fbWidth;
+		f32 zero = 0.0f;
+		JGeometry::TBox2f box(0.0f, 0.0f, zero + x, zero + y);
+		graf->fillBox(box);
+	}
+}
+
+/**
+ * @note Address: 0x803CC750
+ * @note Size: 0xB0
+ */
+void TOption::loadResource()
+{
+	char resName[PATH_MAX];
+	sys->heapStatusStart("TOption::loadResource", nullptr);
+#if defined(VERSION_JP)
+	og::newScreen::makeLanguageResName(resName, "option_jp.szs");
+#elif defined(VERSION_PAL)
+	og::newScreen::makeLanguageResName(resName, "option_pal.szs");
+#else
+	og::newScreen::makeLanguageResName(resName, "option_us.szs");
+#endif
+	JKRArchive* archive = JKRMountArchive(resName, JKRArchive::EMM_Mem, nullptr, JKRArchive::EMD_Head);
+#if defined(VERSION_PAL) || defined(VERSION_US_DEMO1)
+	P2ASSERTLINE(768, (archive != nullptr));
+#else
+	P2ASSERTLINE(757, (archive != nullptr));
+#endif
+	sys->heapStatusEnd("TOption::loadResource");
+	setArchive(archive);
+}
+
+/**
+ * @note Address: 0x803CC800
+ * @note Size: 0xBC
+ */
+void TOption::setController(Controller* controller)
+{
+	mController = controller;
+	mInputBgmVol.init(mController, 0, 10, &mOptionParamA.mBgmVolume, EUTPadInterface_countNum::MODE_RIGHTLEFT, 0.66f, 0.15f);
+	mInputSfxVol.init(mController, 0, 10, &mOptionParamA.mSeVolume, EUTPadInterface_countNum::MODE_RIGHTLEFT, 0.66f, 0.15f);
+	mInputStereo.init(mController, 0, 2, &mOptionParamA.mSoundMode, EUTPadInterface_countNum::MODE_RIGHTLEFT, 0.66f, 0.15f);
+	mInputMainSel.init(mController, 0, 6, &mCurrMainSelection, EUTPadInterface_countNum::MODE_DOWNUP, 0.66f, 0.15f);
+#if defined(VERSION_PAL)
+	mInputLanguage.init(mController, 0, 4, &mOptionParamA.mLanguage, EUTPadInterface_countNum::MODE_RIGHTLEFT, 0.66f, 0.15f);
+#endif
+}
+
+/**
+ * @note Address: 0x803CC8BC
+ * @note Size: 0x174
+ */
+void TOption::initScreen_()
+{
+	mBlinkColor.mPane  = nullptr;
+	mBlinkAlphaA.mPane = nullptr;
+
+	mBlinkAlphaB.mIsEnabled = false;
+	J2DPane* pane           = mBlinkAlphaB.mPane;
+	if (pane) {
+		pane->setAlpha(0);
+	}
+
+	for (int i = 0; i < mOptionParamA.mBgmVolume; i++) {
+		mPaneBgmVolume[i]->setAlpha(255);
+	}
+
+	for (int i = 0; i < mOptionParamA.mSeVolume; i++) {
+		mPaneSfxVolume[i]->setAlpha(255);
+	}
+
+	for (int i = 0; i < 7; i++) {
+		if (i != 5) {
+			mOptionPanes[i]->show();
+		}
+	}
+
+	mDeflickerScreen->setAlpha(0);
+}
+
+/**
+ * @note Address: 0x803CCA30
+ * @note Size: 0xC9C
+ */
+void TOption::setOptionParamToScreen_()
+{
+#if defined(VERSION_PAL)
+	for (int i = 0; i < 5; i++) {
+		mPaneLanguage[i]->setAlpha(80);
+	}
+	mPaneLanguage[mOptionParamA.mLanguage]->setAlpha(255);
+#endif
+#if defined(VERSION_JP)
+	if (mOptionParamA.mIsRubyFont) {
+		mFontColorActiveSel.applyColorsToPane(mPaneRubyYes);
+		mFontColorInactiveSel.applyColorsToPane(mPaneRubyNo);
+	} else {
+		mFontColorInactiveSel.applyColorsToPane(mPaneRubyYes);
+		mFontColorActiveSel.applyColorsToPane(mPaneRubyNo);
+	}
+
+#endif
+	if (mOptionParamA.mIsRumble) {
+		mFontColorActiveSel.applyColorsToPane(mPaneRumbleYes);
+		mFontColorInactiveSel.applyColorsToPane(mPaneRumbleNo);
+	} else {
+		mFontColorInactiveSel.applyColorsToPane(mPaneRumbleYes);
+		mFontColorActiveSel.applyColorsToPane(mPaneRumbleNo);
+	}
+
+	switch (mOptionParamA.mSoundMode) {
+	case 0:
+		mFontColorActiveSel.applyColorsToPane(mPaneSoundType[0]);
+		mFontColorInactiveSel.applyColorsToPane(mPaneSoundType[1]);
+		mFontColorInactiveSel.applyColorsToPane(mPaneSoundType[2]);
+		break;
+	case 1:
+		mFontColorInactiveSel.applyColorsToPane(mPaneSoundType[0]);
+		mFontColorActiveSel.applyColorsToPane(mPaneSoundType[1]);
+		mFontColorInactiveSel.applyColorsToPane(mPaneSoundType[2]);
+		break;
+	case 2:
+		mFontColorInactiveSel.applyColorsToPane(mPaneSoundType[0]);
+		mFontColorInactiveSel.applyColorsToPane(mPaneSoundType[1]);
+		mFontColorActiveSel.applyColorsToPane(mPaneSoundType[2]);
+		break;
+	}
+
+	for (int i = 0; i < 10; i++) {
+		if (i < mOptionParamA.mBgmVolume) {
+			mPaneBgmVolume[i]->show();
+			mPaneBgmVolume[i]->setAlpha(255);
+		} else {
+			mPaneBgmVolume[i]->hide();
+		}
+	}
+	for (int i = 0; i < 10; i++) {
+		if (i < mOptionParamA.mSeVolume) {
+			mPaneSfxVolume[i]->show();
+			mPaneSfxVolume[i]->setAlpha(255);
+		} else {
+			mPaneSfxVolume[i]->hide();
+		}
+	}
+
+	if (mOptionParamA.mUseDeflicker) {
+		mFontColorActiveSel.applyColorsToPane(mPaneDeflickerYes);
+		mFontColorInactiveSel.applyColorsToPane(mPaneDeflickerNo);
+	} else {
+		mFontColorInactiveSel.applyColorsToPane(mPaneDeflickerYes);
+		mFontColorActiveSel.applyColorsToPane(mPaneDeflickerNo);
+	}
+
+	switch (mCurrMainSelection) {
+#if defined(VERSION_JP)
+	case 0:
+		if (mOptionParamA.mIsRubyFont) {
+			mBlinkColor.mPane = mPaneRubyYes;
+		} else {
+			mBlinkColor.mPane = mPaneRubyNo;
+		}
+		mBlinkAlphaA.mPane = nullptr;
+		break;
+#else
+	case 0:
+#if defined(VERSION_PAL)
+		mBlinkColor.mPane = nullptr;
+#endif
+		break;
+#endif
+	case 1:
+		if (mOptionParamA.mIsRumble) {
+			mBlinkColor.mPane = mPaneRumbleYes;
+		} else {
+			mBlinkColor.mPane = mPaneRumbleNo;
+		}
+		mBlinkAlphaA.mPane = nullptr;
+		break;
+	case 2:
+		mBlinkColor.mPane  = mPaneSoundType[mOptionParamA.mSoundMode];
+		mBlinkAlphaA.mPane = nullptr;
+		break;
+	case 3:
+		mBlinkColor.mPane = nullptr;
+		if (mOptionParamA.mBgmVolume == 0) {
+			mBlinkAlphaA.mPane = nullptr;
+		} else {
+			mBlinkAlphaA.mPane = mPaneBgmVolume[mOptionParamA.mBgmVolume - 1];
+		}
+		break;
+	case 4:
+		mBlinkColor.mPane = nullptr;
+		if (mOptionParamA.mSeVolume == 0) {
+			mBlinkAlphaA.mPane = nullptr;
+		} else {
+			mBlinkAlphaA.mPane = mPaneSfxVolume[mOptionParamA.mSeVolume - 1];
+		}
+		break;
+	case 5:
+		if (mOptionParamA.mUseDeflicker) {
+			mBlinkColor.mPane = mPaneDeflickerYes;
+		} else {
+			mBlinkColor.mPane = mPaneDeflickerNo;
+		}
+		mBlinkAlphaA.mPane = nullptr;
+		break;
+	case 6:
+		mBlinkColor.mPane  = nullptr;
+		mBlinkAlphaA.mPane = nullptr;
+		break;
+	default:
+		mBlinkColor.mPane  = nullptr;
+		mBlinkAlphaA.mPane = nullptr;
+	}
+}
+
+} // namespace Screen
+} // namespace ebi

@@ -1,0 +1,103 @@
+/* Save Manager (port/launcher/saves_window.cpp, docs/launcher/SETTINGS.md 10).
+   Two panes: the list of saves and backups on the left, the selected item on the right.
+   Layout adapted from Dusklight's res/rml/saves.rcss (CC0). */
+
+window.saves pane.list {
+    flex: 0 0 340dp;
+}
+
+window.saves pane.list > header {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+    min-height: 44dp;
+    focus: none;
+}
+
+window.saves pane.list > header section-heading {
+    flex: 1 1 0;
+    min-width: 0;
+}
+
+window.saves pane.list > header:not(:first-child) {
+    margin-top: var(--space-lg);
+}
+
+window.saves list-empty {
+    display: block;
+    padding: var(--space-sm) var(--space-lg);
+    font-size: var(--font-size-md);
+    color: rgba(var(--color-text-rgb), 45%);
+}
+
+window.saves pane.detail {
+    gap: var(--space-md);
+}
+
+window.saves pane.detail section-heading {
+    margin-top: var(--space-md);
+}
+
+window.saves pane.detail > small {
+    display: block;
+}
+
+save-header {
+    display: block;
+}
+
+save-header heading {
+    font-family: var(--font-family-heading);
+    font-size: var(--font-size-6xl);
+    line-height: 1.2;
+}
+
+save-header small {
+    display: block;
+    margin-top: var(--space-2xs);
+}
+
+save-overview {
+    display: block;
+    padding: 14dp 16dp;
+    border-radius: var(--radius-panel);
+    background-color: rgba(var(--color-control-rgb), 30%);
+    box-shadow: rgba(var(--color-border-rgb), 30%) 0 0 0 1dp;
+}
+
+save-overview.present {
+    box-shadow: rgba(var(--color-success-rgb), 40%) 0 0 0 1dp;
+}
+
+save-overview.present heading {
+    color: var(--color-success);
+}
+
+save-overview small {
+    display: block;
+    margin-top: var(--space-2xs);
+}
+
+save-overview small + heading {
+    margin-top: var(--space-md);
+}
+
+window.saves button:not(.icon-button) {
+    text-align: left;
+}
+
+@media (max-width: 720dp) {
+    window.saves pane.list {
+        flex: 0 0 42%;
+    }
+}
+
+@media (max-height: 640dp) {
+    window.saves pane.list {
+        flex: 1 1 0;
+    }
+
+    save-header heading {
+        font-size: var(--font-size-4xl);
+    }
+}

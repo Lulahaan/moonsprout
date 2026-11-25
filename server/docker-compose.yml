@@ -1,0 +1,63 @@
+# Self-hosted mppm lobby with coturn (README.md, "Self-hosting"). Example only: nothing in the project
+# runs it. Put PUBLIC_HOST (DNS name or public IPv4 of this machine) and a long random TURN_SECRET in
+# a .env file next to this file, then `docker compose up -d`.
+services:
+  mppm-server:
+    build: .
+    restart: unless-stopped
+    command:
+      - --relay-mode
+      - shared-secret
+      - --turn
+      - turn:${PUBLIC_HOST}:3478
+      - --stun
+      - stun:${PUBLIC_HOST}:3478
+      # Behind the Caddy sidecar below, uncomment so rate limits see the real client address:
+      # - --trust-proxy
+    environment:
+      # From the environment, not the command line, so `ps` does not show it.
+      MPPM_TURN_SECRET: ${TURN_SECRET}
+    ports:
+      - "8080:8080/tcp"
+
+  coturn:
+    image: coturn/coturn
+    restart: unless-stopped
+    network_mode: host # TURN needs the real addresses and a large UDP port range
+    command:
+      - -n
+      - --log-file=stdout
+      - --use-auth-secret
+      # coturn takes the secret only here or in a turnserver.conf; mount one with
+      # static-auth-secret=... instead if other users of this machine must not see it in `ps`.
+      - --static-auth-secret=${TURN_SECRET}
+      - --realm=${PUBLIC_HOST}
+      - --listening-port=3478
+      - --min-port=49152
+      - --max-port=65535
+      - --no-cli
+      - --no-tls
+      - --no-dtls
+      - --fingerprint
+      - --no-multicast-peers
+      - --denied-peer-ip=10.0.0.0-10.255.255.255
+      - --denied-peer-ip=172.16.0.0-172.31.255.255
+      - --denied-peer-ip=192.168.0.0-192.168.255.255
+    # With network_mode: host these ports are the host's own: open 3478/udp, 3478/tcp and
+    # 49152-65535/udp in the firewall.
+
+  # TLS for the lobby (the game wants https:// for any server that is not on the same computer).
+  # Uncomment, point PUBLIC_HOST's DNS here, open 80/tcp and 443/tcp, remove the 8080 port above and
+  # use https://${PUBLIC_HOST} as the game's server URL.
+  # caddy:
+  #   image: caddy:2
+  #   restart: unless-stopped
+  #   ports:
+  #     - "80:80/tcp"
+  #     - "443:443/tcp"
+  #   command: caddy reverse-proxy --from ${PUBLIC_HOST} --to mppm-server:8080
+  #   volumes:
+  #     - caddy-data:/data
+
+# volumes:
+#   caddy-data:

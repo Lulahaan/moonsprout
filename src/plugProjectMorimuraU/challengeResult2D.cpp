@@ -1,0 +1,1871 @@
+#include "Morimura/challengeResult2d.h"
+#include "Morimura/mrUtil.h"
+#include "trig.h"
+#include "og/newScreen/ogUtil.h"
+#include "JSystem/JMath.h"
+#include "LoadResource.h"
+#include "Controller.h"
+#include "Game/GameConfig.h"
+#include "PSSystem/PSSystemIF.h"
+#include "Dolphin/rand.h"
+#include "Game/gameChallenge2D.h"
+#include "efx2d/efx2dEffect.h"
+
+static const char name[] = "challengeResult2D";
+
+namespace Morimura {
+
+bool TChallengeResult::mForceDemoStart       = false;
+u8 TChallengeResult::mTestStageId            = 0;
+JKRHeap* TChallengeResult::mDebugHeapParent  = nullptr;
+JKRExpHeap* TChallengeResult::mDebugHeap     = nullptr;
+ResTIMG* TChallengeResult::mLeafTexture      = nullptr;
+ResTIMG* TChallengeResult::mFlowerTexture    = nullptr;
+ResTIMG* TChallengeResult::mRedFlowerTexture = nullptr;
+
+f32 TChallengeResult::mMoveSpeed       = 12.0f;
+f32 TChallengeResult::mAngRate         = 0.3f;
+f32 TChallengeResult::mAngVelMax       = 20.0f;
+f32 TChallengeResult::mAccel           = 0.1f;
+bool TChallengeResult::mTestDemo       = true;
+bool TChallengeResult::mComplete       = true;
+s16 TChallengeResult::mTestRankInOrder = 0xFFFF;
+f32 TChallengeResult::mFlashInterval   = 40.0f;
+f32 TChallengeResult::mDemoSpeedUpRate = 2.0f;
+f32 TChallengeResult::mDemoSpeedUpMax  = 3.0f;
+u8 TChallengeResult::mFlashColor[]     = { 255, 255, 0, 255 };
+
+const int cRandArray[] = { 0, 1, 2, 0, 2, 1, 1, 0, 2, 1, 2, 0, 2, 1, 0, 2, 0, 1 };
+
+/**
+ * @note Address: 0x80393348
+ * @note Size: 0x20
+ */
+void TChallengeResultScreen::create(char const* path, u32 flag)
+{
+	TScreenBase::create(path, flag);
+}
+
+/**
+ * @note Address: 0x80393368
+ * @note Size: 0x118
+ */
+void TChallengeResultScreen::createAnimPane(char* path)
+{
+	u64 tagList[19] = { MC64('Nhl_00', 0x4E686C5F3030), MC64('Nhl_01', 0x4E686C5F3031), MC64('Nhl_02', 0x4E686C5F3032), MC64('Nhl_03', 0x4E686C5F3033), MC64('Nhl_04', 0x4E686C5F3034), MC64('Nhl_05', 0x4E686C5F3035),   MC64('Nhl_06', 0x4E686C5F3036),   MC64('Nhl_07', 0x4E686C5F3037),   MC64('Nhl_08', 0x4E686C5F3038),  MC64('Nhl_09', 0x4E686C5F3039),
+	                    MC64('Nhl_10', 0x4E686C5F3130), MC64('Nhl_11', 0x4E686C5F3131), MC64('Nhl_12', 0x4E686C5F3132), MC64('Nhl_13', 0x4E686C5F3133), MC64('Nhl_14', 0x4E686C5F3134), MC64('Pmsen003', 0x506D73656E303033), MC64('Pmsen004', 0x506D73656E303034), MC64('Pmsen007', 0x506D73656E303037), MC64('Pmsen009', 0x506D73656E303039) };
+	mAnimPaneCount  = 19;
+	mAnimPanes      = new og::Screen::AnimPane*[mAnimPaneCount];
+
+	for (int i = 0; i < mAnimPaneCount; i++) {
+		mAnimPanes[i] = new og::Screen::AnimPane;
+		mAnimPanes[i]->init(mArchive, mScreenObj, tagList[i], path);
+	}
+	mResultAnimPane = new og::Screen::AnimPane;
+	mResultAnimPane->init(mArchive, mScreenObj, MC64('NULL_001', 0x4E554C4C5F303031), path);
+}
+
+/**
+ * @note Address: 0x80393480
+ * @note Size: 0x54
+ */
+void TChallengeResultScreen::updateBckPane()
+{
+	TChallengeScreen::updateBckPane();
+	mResultAnimPane->update();
+	if (mResultAnimPane->mCurrentFrame >= 120.0f) {
+		mResultAnimPane->mCurrentFrame = 0.0f;
+	}
+}
+
+/**
+ * @note Address: N/A
+ * @note Size: 0x50
+ */
+TChallengeResultDemoScreen::TChallengeResultDemoScreen(JKRArchive* arc, int anims)
+    : TScreenBase(arc, anims)
+{
+	mAnimPane1 = nullptr;
+	mAnimPane2 = nullptr;
+	mAnimPane3 = nullptr;
+	mIsActive  = false;
+}
+
+/**
+ * @note Address: 0x803934D4
+ * @note Size: 0xF8
+ */
+void TChallengeResultDemoScreen::create(char const* path, u32 flag)
+{
+	TScreenBase::create(path, flag);
+
+	mAnimPane1 = new og::Screen::AnimPane;
+	mAnimPane1->init(mArchive, mScreenObj, MC64('NULL_001', 0x4E554C4C5F303031), "challenge_modo_result_demo.bck");
+
+	mAnimPane2 = new og::Screen::AnimPane;
+	mAnimPane2->init(mArchive, mScreenObj, MC64('Nribons', 0x4E7269626F6E73), "challenge_modo_result_demo.bck");
+
+	mAnimPane3 = new og::Screen::AnimPane;
+	mAnimPane3->init(mArchive, mScreenObj, MC64('Nribons2', 0x4E7269626F6E7332), "challenge_modo_result_demo.bck");
+}
+
+/**
+ * @note Address: 0x803935CC
+ * @note Size: 0xE4
+ */
+void TChallengeResultDemoScreen::update()
+{
+	if (mScreenObj && mIsActive) {
+		mScreenObj->update();
+		for (int i = 0; i < mAnimScreenCountMax; i++) {
+			mAnimScreens[i]->update();
+			if (i == 0 && mAnimScreens[0]->mCurrentFrame >= 20.0f) {
+				mAnimScreens[0]->mCurrentFrame = 20.0f;
+			}
+		}
+		mAnimPane1->update();
+		mAnimPane2->update();
+		mAnimPane3->update();
+		mScreenObj->animation();
+	}
+}
+
+/**
+ * @note Address: 0x803936B0
+ * @note Size: 0x2C
+ */
+void TChallengeResultDemoScreen::draw(Graphics& gfx, J2DPerspGraph* graf)
+{
+	if (mIsActive) {
+		TScreenBase::draw(gfx, graf);
+	}
+}
+
+/**
+ * @note Address: N/A
+ * @note Size: 0x3C
+ */
+void TChallengeResultDemoScreen::startDemo()
+{
+	mIsActive = true;
+	for (int i = 0; i < mAnimScreenCountMax; i++) {
+		mAnimScreens[i]->mCurrentFrame = 0.0f;
+	}
+}
+
+/**
+ * @note Address: N/A
+ * @note Size: 0xCC
+ */
+void TChallengeResultDemoScreen::setComplete(bool isComplete)
+{
+	mIsActive                   = false;
+	TChallengeResult::mComplete = isComplete;
+	u64 msgID                   = MC64('4871_00', 0x343837315F3030); // "Complete!"
+	if (isComplete) {
+		msgID = MC64('4872_00', 0x343837325F3030); // "Perfect!"
+	}
+	const u64 tags[3] = { MC64('Tribon00', 0x547269626F6E3030), MC64('Tribon01', 0x547269626F6E3031), MC64('Tribon02', 0x547269626F6E3032) };
+	for (int i = 0; i < 3; i++) {
+		J2DPane* pane = mScreenObj->search(tags[i]);
+		P2ASSERTLINE(224, pane);
+		pane->setMsgID(msgID);
+	}
+}
+
+/**
+ * @note Address: N/A
+ * @note Size: 0x74
+ */
+void TChallengeResultDemoScreen::reset()
+{
+	for (int i = 0; i < mAnimScreenCountMax; i++) {
+		mAnimScreens[i]->mCurrentFrame = 0.0f;
+	}
+	update();
+	mIsActive = false;
+}
+
+/**
+ * @note Address: N/A
+ * @note Size: 0x28
+ */
+TMovePane::TMovePane()
+{
+	mPane      = nullptr;
+	mStickPane = nullptr;
+	mAngle     = 0.0f;
+	mState     = 0;
+	mCounter   = 0;
+	_44        = 0;
+	_48        = 0;
+}
+
+/**
+ * @note Address: 0x803936DC
+ * @note Size: 0x7C
+ */
+void TMovePane::setPane(J2DPane* pane)
+{
+	P2ASSERTLINE(271, pane);
+	mPane = pane;
+	mPane->setBasePosition(J2DPOS_Center);
+	mPanePosition = JGeometry::TVec2f(pane->mTranslateX, pane->mTranslateY);
+	reset();
+}
+
+/**
+ * @note Address: 0x80393758
+ * @note Size: 0xFC
+ */
+void TMovePane::update()
+{
+	switch (mState) {
+	case 1:
+		move();
+		break;
+	case 2:
+		turn();
+		break;
+	case 3:
+		if (hosei()) {
+			mState = 0;
+		}
+		break;
+	case 4:
+		stick();
+		break;
+	case 5:
+		rolling();
+		break;
+	}
+
+	mPane->setOffset(mPaneGoal.x, mPaneGoal.y);
+	f32 ang = roundAng(TAU - mAngle); // needed to load floats in right order lol
+	mPane->setAngle(ang * 360.0f / TAU);
+	if (mCounter > 0) {
+		mCounter++;
+	}
+}
+
+/**
+ * @note Address: 0x80393854
+ * @note Size: 0x16C
+ */
+void TMovePane::move()
+{
+	turn();
+	mTargetVelocity.x = sinf(mAngle) * TChallengeResult::mMoveSpeed * TChallengeResult::mDemoSpeedUpRate;
+	mTargetVelocity.y = -cosf(mAngle) * TChallengeResult::mMoveSpeed * TChallengeResult::mDemoSpeedUpRate;
+
+	JGeometry::TVec2f difference(mTargetVelocity.x - mVelocity.x, mTargetVelocity.y - mVelocity.y);
+	JGeometry::TVec2f acceleration;
+	acceleration.scale(difference, TChallengeResult::mAccel);
+	JGeometry::TVec2f velocity = mVelocity;
+	mVelocity.add(velocity, acceleration * TChallengeResult::mDemoSpeedUpRate);
+
+	mPaneGoal += mVelocity;
+	if (isReachToGoal()) {
+		mState = 3;
+	}
+}
+
+/**
+ * @note Address: 0x803939C0
+ * @note Size: 0x8C
+ */
+void TMovePane::turn()
+{
+	f32 calc  = getAngDist() * TChallengeResult::mAngRate * TChallengeResult::mDemoSpeedUpRate;
+	f32 limit = PI * (DEG2RAD * (TChallengeResult::mAngVelMax * TChallengeResult::mDemoSpeedUpRate));
+	if (absF(calc) > limit) {
+		calc = calc > 0.0f ? limit : -limit;
+	}
+	mAngle = roundAng(mAngle + calc);
+}
+
+/**
+ * @note Address: 0x80393A4C
+ * @note Size: 0x7C
+ */
+f32 TMovePane::getAngDist()
+{
+	f32 distX = mOffset.x - mPaneGoal.x;
+	if (distX == 0.0f) {
+		distX = 0.1f;
+	}
+	f32 distY = mOffset.y - mPaneGoal.y;
+	if (distY == 0.0f) {
+		distY = 0.1f;
+	}
+	f32 angle = JMAAtan2Radian(distX, -distY);
+	return angDist(roundAng(angle), mAngle);
+}
+
+/**
+ * @note Address: 0x80393AC8
+ * @note Size: 0x204
+ */
+bool TMovePane::hosei()
+{
+	bool ret          = false;
+	mTargetVelocity.x = 0.0f;
+	mTargetVelocity.y = 0.0f;
+	mVelocity         = 0.0f;
+	JGeometry::TVec2f goal(mPaneGoal);
+	JGeometry::TVec2f delta(mOffset.x - goal.x, mOffset.y - goal.y);
+	delta.scale(0.05f * TChallengeResult::mDemoSpeedUpRate);
+	mPaneGoal += delta;
+	if (absF(delta.x) < 0.05f && absF(delta.y) < 0.05f) {
+		ret       = true;
+		mPaneGoal = mOffset;
+	}
+
+	mOffset.y -= 100.0f;
+	turn();
+	if (absF(getAngDist()) > 0.01f)
+		ret = false;
+	mOffset.y += 100.0f;
+	return ret;
+}
+
+/**
+ * @note Address: 0x80393CCC
+ * @note Size: 0x30
+ */
+void TMovePane::rolling()
+{
+	mAngle += 0.5f * TChallengeResult::mDemoSpeedUpRate;
+	if (mAngle > TAU) {
+		mAngle -= TAU;
+	}
+}
+
+/**
+ * @note Address: 0x80393CFC
+ * @note Size: 0x12C
+ */
+void TMovePane::stick()
+{
+	turn();
+	JUT_ASSERTLINE(445, mStickPane, "no stick pane\n");
+	mPaneGoal.x = mStickPosition.x + mStickPane->mGlobalMtx[0][3];
+	mPaneGoal.y = mStickPosition.y + mStickPane->mGlobalMtx[1][3];
+}
+
+/**
+ * @note Address: N/A
+ * @note Size: 0x8C
+ */
+void TMovePane::forceTurn()
+{
+	mAngle = roundAng(mAngle + getAngDist());
+}
+
+/**
+ * @note Address: N/A
+ * @note Size: 0x88
+ */
+void TMovePane::startStick(J2DPane* pane)
+{
+	mState = 4;
+	P2ASSERTLINE(471, pane);
+	mStickPane       = pane;
+	mStickPosition.x = mPaneGoal.x - mStickPane->mGlobalMtx[0][3];
+	mStickPosition.y = mPaneGoal.y - mStickPane->mGlobalMtx[1][3];
+}
+
+/**
+ * @note Address: 0x80393E28
+ * @note Size: 0x34
+ */
+bool TMovePane::isReachToGoal()
+{
+	f32 x = mPaneGoal.x - mOffset.x;
+	f32 y = mPaneGoal.y - mOffset.y;
+	return (x * x + y * y < 600.0f);
+}
+
+/**
+ * @note Address: 0x80393E5C
+ * @note Size: 0xD0
+ */
+void TMovePane::reset()
+{
+	mVelocity         = 0.0f;
+	mTargetVelocity.x = mVelocity.x;
+	mTargetVelocity.y = mVelocity.y;
+	mPaneGoal.x       = mPanePosition.x;
+	mPaneGoal.y       = mPanePosition.y;
+	mOffset.x         = mPaneGoal.x;
+	mOffset.y         = mPaneGoal.y;
+	mState            = 0;
+	mCounter          = 0;
+	mAngle            = 0.0f;
+	mPane->setOffset(mPaneGoal.x, mPaneGoal.y);
+	mPane->setAngle(roundAng(TAU - mAngle) * 360.0f / TAU);
+}
+
+/**
+ * @note Address: 0x80393F2C
+ * @note Size: 0x100
+ */
+TCounterRV* setTCounterRV(P2DScreen::Mgr* screen, u64 tag1, u64 tag2, u64 tag3, u32* data, u16 flag1, u16 flag2, JKRArchive* arc)
+{
+	TCounterRV* counter = new TCounterRV(const_cast<char**>(og::Screen::SujiTex32), flag1, flag2, arc);
+	P2ASSERTLINE(518, counter);
+	counter->init(screen, tag1, tag2, tag3, data, true);
+	counter->setPuyoAnim(false);
+	screen->addCallBack(tag1, counter);
+	return counter;
+}
+
+/**
+ * @note Address: 0x8039402C
+ * @note Size: 0x130
+ */
+TCounterRV::TCounterRV(char** a1, u16 a2, u16 a3, JKRArchive* arc)
+    : CallBack_CounterRV(a1, a2, a3, arc)
+    , mEfxCountKiras(nullptr)
+    , mEnabled(false)
+    , _B1(false)
+{
+	setColor(255);
+	mEfxCountKiras = new efx2d::T2DCountKira*[mMaxDisplayDigitNum];
+	for (int i = 0; i < mMaxDisplayDigitNum; i++) {
+		mEfxCountKiras[i] = new efx2d::T2DCountKira;
+	}
+	setPuyoAnim(false);
+}
+
+/**
+ * @note Address: 0x8039415C
+ * @note Size: 0xDC
+ */
+void TCounterRV::update()
+{
+	og::Screen::CallBack_CounterRV::update();
+	for (int i = 0; i < mMaxDisplayDigitNum; i++) {
+		J2DPicture* pic = getKetaPicture(i);
+		P2ASSERTLINE(557, pic);
+		pic->setWhite(mColor);
+	}
+}
+
+/**
+ * @note Address: 0x80394238
+ * @note Size: 0xD8
+ */
+void TCounterRV::setValue(bool flag1, bool flag2)
+{
+	if (mEnabled) {
+		mEnabled = false;
+		setPuyoAnim(true);
+		u16 max = og::Screen::CalcKeta(mInitialDisplayValue);
+		for (int i = 0; i < max; i++) {
+			mCounterDigits[i]->mScaleMgr->up(0.4f, 50.0f, 0.8f, 0.05f * f32(max - i));
+		}
+	} else {
+		og::Screen::CallBack_CounterRV::setValue(flag1, flag2);
+	}
+}
+
+/**
+ * @note Address: N/A
+ * @note Size: 0x150
+ */
+void TCounterRV::createKiraEffect(f32 scale, int max)
+{
+	for (int i = 0; i < max; i++) {
+		J2DPicture* pic = mCounterDigits[i]->mPicture;
+		P2ASSERTLINE(597, pic);
+		pic->setBasePosition(J2DPOS_Center);
+		Vector2f pos;
+		pos.x = pic->getGlbVtx(GLBVTX_BtmLeft).x + pic->getWidth() * 0.5f;
+		pos.y = pic->getGlbVtx(GLBVTX_BtmLeft).y + pic->getHeight() * 0.5f;
+		efx2d::Arg arg(pos);
+		mEfxCountKiras[i]->mScale = scale;
+		mEfxCountKiras[i]->create(&arg);
+	}
+}
+
+/**
+ * @note Address: N/A
+ * @note Size: 0x94
+ */
+void TCounterRV::fadeKiraEffect()
+{
+	for (int j = 0; j < mMaxDisplayDigitNum; j++) {
+		P2ASSERTLINE(619, mEfxCountKiras[j]);
+		mEfxCountKiras[j]->fade();
+	}
+}
+
+/**
+ * @note Address: N/A
+ * @note Size: 0xC
+ */
+void TCounterRV::startScaleAnim()
+{
+	mEnabled = true;
+}
+
+/**
+ * @note Address: N/A
+ * @note Size: 0xA8
+ */
+void TCounterRV::reset()
+{
+	mEnabled = false;
+	_B1      = false;
+	setPuyoAnim(false);
+	fadeKiraEffect();
+}
+
+/**
+ * @note Address: N/A
+ * @note Size: 0x60
+ */
+TChallengeResultCounter::TChallengeResultCounter(u32* val, int a1, int a2)
+{
+	mDisplayValue = val;
+	mCurrentValue = *val;
+	mState        = 0;
+	_0C           = 0;
+	_1C           = 0;
+	_20           = 0;
+	_14           = a1;
+	_18           = a2;
+	_24           = new int[a1];
+}
+
+/**
+ * @note Address: N/A
+ * @note Size: 0x138
+ */
+void TChallengeResultCounter::start()
+{
+	if (mState == 1) {
+		return;
+	}
+	mCurrentValue = *mDisplayValue;
+	_0C           = 0;
+	_20           = 0;
+	_1C           = 0;
+	mState        = 1;
+	for (int i = 0; i < _14; i++) {
+		_24[i] = 0;
+	}
+
+	int value;
+	int digits = 1;
+	for (value = *mDisplayValue; value >= 10; value /= 10) {
+		digits++;
+	}
+	mDigits = digits;
+
+	value = *mDisplayValue;
+	for (int i = digits; i > 1; i--) {
+		int calc  = (int)pow(10.0f, f64(i - 1));
+		int test2 = value / calc;
+		value -= test2 * calc;
+		_24[i - 1] = test2;
+	}
+	_24[0] = value;
+	// UNUSED FUNCTION
+}
+
+/**
+ * @note Address: N/A
+ * @note Size: 0x40
+ */
+void TChallengeResultCounter::stop()
+{
+	// UNUSED FUNCTION
+}
+
+/**
+ * @note Address: N/A
+ * @note Size: 0x70
+ */
+f32 TChallengeResultCounter::getFillRate()
+{
+	f32 rate = (f32)mDigits / (f32)_18;
+	if (mDigits == 1) {
+		rate += 0.05f;
+	}
+	rate += 0.1f;
+	if (rate > 1.0f) {
+		rate = 1.0f;
+	}
+	return rate;
+}
+
+/**
+ * @note Address: N/A
+ * @note Size: 0x1B0
+ */
+void TChallengeResultCounter::update()
+{
+	if (mState == 1) {
+		u32 calc = 0;
+		for (int j = 0; j < mDigits; j++) {
+			int test = pow(10.0f, j);
+			if (_0C > j) {
+				calc += test * _24[j];
+			} else {
+				calc = u32(calc + test * ((f32)randInt(9) + 1.0f));
+			}
+		}
+		*mDisplayValue = calc;
+		if (_20 > 0) {
+			_20--;
+			if (!_20) {
+				if (mState == 1) {
+					_0C++;
+					if (_0C >= mDigits) {
+						*mDisplayValue = mCurrentValue;
+						mState         = 2;
+					}
+				}
+				_20 = _1C;
+			}
+		}
+	}
+}
+
+/**
+ * @note Address: N/A
+ * @note Size: 0x80
+ */
+void TClearTexture::resetTexture()
+{
+	mPane1->changeTexture(TChallengeResult::mLeafTexture, 0);
+	mPane1->setBasePosition(J2DPOS_Center);
+	mPane2->changeTexture(TChallengeResult::mLeafTexture, 0);
+	mPane2->setBasePosition(J2DPOS_Center);
+	_00 = 0;
+}
+
+/**
+ * @note Address: N/A
+ * @note Size: 0xA4
+ */
+void TClearTexture::changeTexture(bool isComplete)
+{
+	if (isComplete) {
+		mPane1->changeTexture(TChallengeResult::mRedFlowerTexture, 0);
+		mPane2->changeTexture(TChallengeResult::mRedFlowerTexture, 0);
+	} else {
+		mPane1->changeTexture(TChallengeResult::mFlowerTexture, 0);
+		mPane2->changeTexture(TChallengeResult::mFlowerTexture, 0);
+	}
+}
+
+/**
+ * @note Address: N/A
+ * @note Size: 0xA4
+ */
+void TClearTexture::getPosition(Vector2f& pos)
+{
+	pos.set(mPane1->getGlbVtx(GLBVTX_BtmLeft).x + mPane1->getWidth(), mPane1->getGlbVtx(GLBVTX_BtmLeft).y + mPane1->getHeight());
+}
+
+/**
+ * @note Address: N/A
+ * @note Size: 0xAC
+ */
+void TClearTexture::getEffectPosition(Vector2f& pos)
+{
+	pos.set(mPane1->getGlbVtx(GLBVTX_BtmLeft).x + mPane1->getWidth() * 0.5f,
+	        mPane1->getGlbVtx(GLBVTX_BtmLeft).y + mPane1->getHeight() * 0.5f);
+}
+
+/**
+ * @note Address: 0x80394310
+ * @note Size: 0x2F0
+ */
+TChallengeResult::TChallengeResult()
+    : TTestBase("challengeResult")
+    , mResultDemoScreen(nullptr)
+    , mResultScreen(nullptr)
+    , mSaveMgr(nullptr)
+    , mControls(nullptr)
+    , mDisp(nullptr)
+    , mCounter1(nullptr)
+    , mCounter2(nullptr)
+    , mCounter3(nullptr)
+    , mCounter4(nullptr)
+    , mCounter5(nullptr)
+    , mScissorPic(nullptr)
+    , mPane1(nullptr)
+    , mPane2(nullptr)
+    , mPanePlayerNum(nullptr)
+    , mPanePlayerNumShadow(nullptr)
+    , mPaneAButton(nullptr)
+    , mPane6(nullptr)
+{
+	mMesgOffs    = nullptr;
+	mEfxCompLoop = nullptr;
+	mScoreTotal  = 0;
+	mPokoCount   = 0;
+	mTimeBonus   = 0;
+
+	for (int i = 0; i < 4; i++) {
+		mFlags[i] = 0;
+	}
+
+	_1DC                  = 6;
+	mTestDefaultPokoScore = 1;
+	mIsSaveOpen           = false;
+	mRankInSlot           = -1;
+	_1E8                  = 0;
+	_1E9                  = 0;
+
+	mTimer             = 0.0f;
+	mAButtonAlphaTimer = 0.0f;
+	mStageList         = nullptr;
+	mSpeed             = mDemoSpeedUpRate;
+
+	for (int i = 0; i < 3; i++) {
+		mCounters1[i]        = nullptr;
+		mHighScoreCounter[i] = nullptr;
+		mResultCounters[i]   = nullptr;
+		mHighScoreValues[i]  = 0;
+		mPosList1[i]         = Vector2f(0.0f);
+		mPosList2[i]         = Vector2f(0.0f);
+		mOnyonMovePane[i]    = nullptr;
+		mOnyonPane[i]        = nullptr;
+	}
+
+	mResultCounters[0] = 0;
+	mResultCounters[1] = 0;
+	mResultCounters[2] = 0;
+	mResultCounters[3] = 0;
+
+	for (int i = 0; i < 5; i++) {
+		mClearTexture[i] = nullptr;
+	}
+
+	mPokoCountOffsetX = 0.0f;
+	mPokoCountOffsetY = 0.0f;
+	mMoveTimer        = 0.0f;
+	_1D4              = 0.0f;
+	_1D8              = 0.0f;
+
+	mVecUnit[0]._00.x = 225.0f;
+	mVecUnit[0]._00.y = 250.0f;
+	mVecUnit[0]._08.x = 40.0f;
+	mVecUnit[0]._08.y = 250.0f;
+
+	mVecUnit[1]._00.x = 405.0f;
+	mVecUnit[1]._00.y = 250.0f;
+	mVecUnit[1]._08.x = 240.0f;
+	mVecUnit[1]._08.y = 250.0f;
+
+	mVecUnit[2]._00.x = 585.0f;
+	mVecUnit[2]._00.y = 250.0f;
+	mVecUnit[2]._08.x = 430.0f;
+	mVecUnit[2]._08.y = 250.0f;
+
+	mVecUnit[3]._00.x = 440.0f;
+	mVecUnit[3]._00.y = 170.0f;
+	mVecUnit[3]._08.x = 200.0f;
+	mVecUnit[3]._08.y = 170.0f;
+
+	_168._00.x = 70.0f;
+	_168._00.y = 30.0f;
+	_168._08.x = -115.0f;
+	_168._08.y = 30.0f;
+
+	mEfxCompLoop = new efx2d::T2DCavecompLoop;
+}
+
+/**
+ * @note Address: 0x80394604
+ * @note Size: 0xF4
+ */
+TChallengeResult::~TChallengeResult()
+{
+	if (mDebugHeap) {
+		mDisp->mHeap->freeAll();
+		mDebugHeap->destroy();
+	}
+
+	mDebugHeap = nullptr;
+}
+
+/**
+ * @note Address: N/A
+ * @note Size: 0x44
+ */
+void TChallengeResult::setDebugHeapParent(JKRHeap* heap)
+{
+	mDebugHeapParent = heap;
+	P2ASSERTLINE(784, mDebugHeapParent); // line number is a guess
+}
+
+/**
+ * @note Address: 0x803946F8
+ * @note Size: 0x1854
+ */
+void TChallengeResult::doCreate(JKRArchive* arc)
+{
+	mArchive                        = arc;
+	DispMemberChallengeResult* disp = static_cast<DispMemberChallengeResult*>(getDispMember());
+	if (disp->isID(OWNER_MRMR, MEMBER_CHALLENGE_RESULT)) {
+		mDisp = disp;
+	} else {
+		mIsSection = true;
+	}
+
+	if (mIsSection) {
+		if (mDebugHeapParent) {
+			mDebugHeap = JKRExpHeap::create(0x100000, mDebugHeapParent, true);
+			P2ASSERTLINE(975, mDebugHeap);
+			mDisp        = new (mDebugHeap, 0) DispMemberChallengeResult;
+			mDisp->mHeap = mDebugHeap;
+		} else {
+			JUT_PANICLINE(982, "set DebugHeapParent. mail to morimun.\n");
+		}
+		mStageList = new Game::ChallengeGame::StageList;
+		void* file = JKRDvdRipper::loadToMainRAM("/user/Matoba/challenge/stages.txt", nullptr, Switch_0, 0, nullptr,
+		                                         JKRDvdRipper::ALLOC_DIR_BOTTOM, 0, nullptr, nullptr);
+		if (file) {
+			RamStream strm(file, -1);
+			strm.setMode(STREAM_MODE_TEXT, 1);
+			mStageList->read(strm);
+		}
+	}
+	mControls = getGamePad();
+	P2ASSERTLINE(1006, mControls);
+
+	mLeafTexture = static_cast<ResTIMG*>(mArchive->getResource("timg/leaf_icon.bti"));
+	P2ASSERTLINE(1010, mLeafTexture);
+	mFlowerTexture = static_cast<ResTIMG*>(mArchive->getResource("timg/flower_icon.bti"));
+	P2ASSERTLINE(1013, mFlowerTexture);
+	mRedFlowerTexture = static_cast<ResTIMG*>(mArchive->getResource("timg/flower_p_icon.bti"));
+	P2ASSERTLINE(1016, mRedFlowerTexture);
+	mSaveMgr = ebi::Save::TMgr::createInstance();
+	mSaveMgr->doLoadMenuResource();
+
+	JKRHeap* backupheap = JKRGetCurrentHeap();
+	mDisp->mHeap->becomeCurrentHeap();
+
+	mResultScreen = new TChallengeResultScreen(arc, 7);
+	mResultScreen->create("challenge_modo_result.blo", 0x1040000);
+	mResultScreen->createAnimPane("challenge_modo_result.bck");
+	mResultScreen->addAnim("challenge_modo_result.bck");
+	mResultScreen->addAnim("challenge_modo_result.bpk");
+	mResultScreen->addAnim("challenge_modo_result.btp");
+	mResultScreen->addAnim("challenge_modo_result.brk");
+	mResultScreen->addAnim("challenge_modo_result.btk");
+	mResultScreen->addAnim("challenge_modo_result_02.btk");
+	mResultScreen->addAnim("challenge_modo_result_03.btk");
+
+	u64 levelTags[2] = { MC64('4901_00', 0x343930315F3030), MC64('4910_00', 0x343931305F3030) }; // "Explorer's Cave"
+	mMesgOffs        = new TOffsetMsgSet(levelTags, MC64('4900_00', 0x343930305F3030), 2);
+
+	P2DScreen::Mgr_tuning* screen = mResultScreen->mScreenObj;
+	screen->search(MC64('Peffect', 0x50656666656374))->show();
+	screen->search(MC64('Peffect1', 0x5065666665637431))->show();
+
+	mPane1 = screen->search(MC64('Tyel1', 0x5479656C31));
+	P2ASSERTLINE(1058, mPane1);
+	mPane2 = screen->search(MC64('Tyel2', 0x5479656C32));
+	P2ASSERTLINE(1061, mPane2);
+	mPanePlayerNum = screen->search(MC64('Tyel3', 0x5479656C33));
+	P2ASSERTLINE(1064, mPanePlayerNum);
+	mPanePlayerNumShadow = screen->search(MC64('Tyel4', 0x5479656C34));
+	P2ASSERTLINE(1067, mPanePlayerNumShadow);
+
+	mOnyonMovePane[0] = new TMovePane;
+	mOnyonPane[0]     = screen->search('NRED');
+
+	mOnyonMovePane[1] = new TMovePane;
+	mOnyonPane[1]     = screen->search(MC64('NYELLOW', 0x4E59454C4C4F57));
+
+	mOnyonMovePane[2] = new TMovePane;
+	mOnyonPane[2]     = screen->search(MC64('NBLUE', 0x4E424C5545));
+
+	for (int i = 0; i < 3; i++) {
+		P2ASSERTLINE(1081, mOnyonMovePane[i]);
+		mOnyonMovePane[i]->setPane(mOnyonPane[i]);
+	}
+
+	mClearTexture[0] = new TClearTexture(this, screen, MC64('PICT_044', 0x504943545F303434), MC64('PICT_043', 0x504943545F303433));
+	mClearTexture[1] = new TClearTexture(this, screen, MC64('PICT_042', 0x504943545F303432), MC64('PICT_041', 0x504943545F303431));
+	mClearTexture[2] = new TClearTexture(this, screen, MC64('PICT_019', 0x504943545F303139), MC64('PICT_018', 0x504943545F303138));
+	mClearTexture[3] = new TClearTexture(this, screen, MC64('PICT_048', 0x504943545F303438), MC64('PICT_047', 0x504943545F303437));
+	mClearTexture[4] = new TClearTexture(this, screen, MC64('PICT_046', 0x504943545F303436), MC64('PICT_045', 0x504943545F303435));
+
+	mCounter2 = setTCounterRV(screen, MC64('Ppoko00', 0x50706F6B6F3030), MC64('Ppoko01', 0x50706F6B6F3031), MC64('Ppoko04', 0x50706F6B6F3034), &mScoreTotal, 5, 5, mArchive);
+	mCounter2->getMotherPane()->hide();
+	mCounter1 = setTCounterRV(screen, MC64('Ppoko00', 0x50706F6B6F3030), MC64('Ppoko01', 0x50706F6B6F3031), MC64('Ppoko04', 0x50706F6B6F3034), &mScoreTotal, 5, 5, mArchive);
+
+	J2DPane* pane = screen->search(MC64('Ppoko02', 0x50706F6B6F3032));
+	P2ASSERTLINE(1103, pane);
+	pane->hide();
+
+	pane = screen->search(MC64('Ppoko03', 0x50706F6B6F3033));
+	P2ASSERTLINE(1107, pane);
+	pane->hide();
+
+	pane = screen->search(MC64('Ppoko04', 0x50706F6B6F3034));
+	P2ASSERTLINE(1111, pane);
+	pane->hide();
+
+	mHighScoreCounter[0] = setTCounterRV(screen, MC64('P1st01', 0x503173743031), MC64('P1st02', 0x503173743032), MC64('P1st05', 0x503173743035), &mScoreTotal, 5, 5, mArchive);
+	mHighScoreCounter[0]->getMotherPane()->hide();
+	mHighScoreCounter[1] = setTCounterRV(screen, MC64('P2nd01', 0x50326E643031), MC64('P2nd02', 0x50326E643032), MC64('P2nd05', 0x50326E643035), &mScoreTotal, 5, 5, mArchive);
+	mHighScoreCounter[1]->getMotherPane()->hide();
+	mHighScoreCounter[2] = setTCounterRV(screen, MC64('P3rd01', 0x503372643031), MC64('P3rd02', 0x503372643032), MC64('P3rd05', 0x503372643035), &mScoreTotal, 5, 5, mArchive);
+	mHighScoreCounter[2]->getMotherPane()->hide();
+
+	mPane6 = screen->search(MC64('Peffect1', 0x5065666665637431));
+	P2ASSERTLINE(1126, mPane6);
+	mScissorPic = new TScissorPane;
+
+	mHighScoreCounter[2]->getMotherPane()->getParentPane()->appendChild(mScissorPic);
+	mCounters1[0] = setTCounterRV(screen, MC64('P1st01', 0x503173743031), MC64('P1st02', 0x503173743032), MC64('P1st05', 0x503173743035), &mHighScoreValues[0], 5, 5, mArchive);
+
+	pane = screen->search(MC64('P1st01', 0x503173743031));
+	P2ASSERTLINE(1135, pane);
+	pane->hide();
+
+	pane = screen->search(MC64('P1st02', 0x503173743032));
+	P2ASSERTLINE(1139, pane);
+	pane->hide();
+
+	pane = screen->search(MC64('P1st03', 0x503173743033));
+	P2ASSERTLINE(1143, pane);
+	pane->hide();
+
+	pane = screen->search(MC64('P1st04', 0x503173743034));
+	P2ASSERTLINE(1147, pane);
+	pane->hide();
+
+	pane = screen->search(MC64('P1st05', 0x503173743035));
+	P2ASSERTLINE(1151, pane);
+	pane->hide();
+
+	mCounters1[1] = setTCounterRV(screen, MC64('P2nd01', 0x50326E643031), MC64('P2nd02', 0x50326E643032), MC64('P2nd05', 0x50326E643035), &mHighScoreValues[1], 5, 5, mArchive);
+
+	pane = screen->search(MC64('P2nd01', 0x50326E643031));
+	P2ASSERTLINE(1158, pane);
+	pane->hide();
+
+	pane = screen->search(MC64('P2nd02', 0x50326E643032));
+	P2ASSERTLINE(1162, pane);
+	pane->hide();
+
+	pane = screen->search(MC64('P2nd03', 0x50326E643033));
+	P2ASSERTLINE(1166, pane);
+	pane->hide();
+
+	pane = screen->search(MC64('P2nd04', 0x50326E643034));
+	P2ASSERTLINE(1170, pane);
+	pane->hide();
+
+	pane = screen->search(MC64('P2nd05', 0x50326E643035));
+	P2ASSERTLINE(1174, pane);
+	pane->hide();
+
+	mCounters1[2] = setTCounterRV(screen, MC64('P3rd01', 0x503372643031), MC64('P3rd02', 0x503372643032), MC64('P3rd05', 0x503372643035), &mHighScoreValues[2], 5, 5, mArchive);
+	_1CC          = 30.0f;
+
+	pane = screen->search(MC64('P3rd01', 0x503372643031));
+	P2ASSERTLINE(1181, pane);
+	pane->hide();
+
+	pane = screen->search(MC64('P3rd02', 0x503372643032));
+	P2ASSERTLINE(1185, pane);
+	pane->hide();
+
+	pane = screen->search(MC64('P3rd03', 0x503372643033));
+	P2ASSERTLINE(1189, pane);
+	pane->hide();
+
+	pane = screen->search(MC64('P3rd04', 0x503372643034));
+	P2ASSERTLINE(1193, pane);
+	pane->hide();
+
+	pane = screen->search(MC64('P3rd05', 0x503372643035));
+	P2ASSERTLINE(1197, pane);
+	pane->hide();
+
+	TScissorPane* tpane = new TScissorPane;
+	tpane->mBounds      = JGeometry::TBox2f(0.0f, 0.0f, 640.0f, 480.0f);
+	mCounters1[2]->getMotherPane()->getParentPane()->appendChild(tpane);
+
+	mCounter3 = setTCounterRV(screen, MC64('Pkase01', 0x506B6173653031), MC64('Pkase02', 0x506B6173653032), MC64('Pkase04', 0x506B6173653034), &mPokoCount, 5, 0, mArchive);
+
+	pane = screen->search(MC64('Pkase01', 0x506B6173653031));
+	P2ASSERTLINE(1208, pane);
+	pane->hide();
+
+	pane = screen->search(MC64('Pkase02', 0x506B6173653032));
+	P2ASSERTLINE(1212, pane);
+	pane->hide();
+
+	pane = screen->search(MC64('Pkase03', 0x506B6173653033));
+	P2ASSERTLINE(1216, pane);
+	pane->hide();
+
+	pane = screen->search(MC64('Pkase04', 0x506B6173653034));
+	P2ASSERTLINE(1220, pane);
+	pane->hide();
+
+	mCounter5 = setTCounterRV(screen, MC64('Ppiki01', 0x5070696B693031), MC64('Ppiki02', 0x5070696B693032), MC64('Ppiki03', 0x5070696B693033), &mPikiCount, 4, 0, mArchive);
+
+	pane = screen->search(MC64('Ppiki01', 0x5070696B693031));
+	P2ASSERTLINE(1227, pane);
+	pane->hide();
+
+	pane = screen->search(MC64('Ppiki02', 0x5070696B693032));
+	P2ASSERTLINE(1231, pane);
+	pane->hide();
+
+	pane = screen->search(MC64('Ppiki03', 0x5070696B693033));
+	P2ASSERTLINE(1235, pane);
+	pane->hide();
+
+	mCounter4 = setTCounterRV(screen, MC64('Ptime01', 0x5074696D653031), MC64('Ptime02', 0x5074696D653032), MC64('Ptime03', 0x5074696D653033), &mTimeBonus, 5, 0, mArchive);
+
+	pane = screen->search(MC64('Ptime01', 0x5074696D653031));
+	P2ASSERTLINE(1242, pane);
+	pane->hide();
+
+	pane = screen->search(MC64('Ptime02', 0x5074696D653032));
+	P2ASSERTLINE(1246, pane);
+	pane->hide();
+
+	pane = screen->search(MC64('Ptime03', 0x5074696D653033));
+	P2ASSERTLINE(1250, pane);
+	pane->hide();
+
+	mResultCounters[0] = new TChallengeResultCounter(&mPokoCount, 5, 4);
+	mResultCounters[1] = new TChallengeResultCounter(&mPikiCount, 4, 3);
+	mResultCounters[2] = new TChallengeResultCounter(&mTimeBonus, 5, 3);
+	mResultCounters[3] = new TChallengeResultCounter(&mScoreTotal, 5, 5);
+
+	for (int i = 0; i < 3; i++) {
+		J2DPane* pane = mCounters1[i]->getMotherPane();
+		P2ASSERTLINE(1263, pane);
+		mPosList1[i].x = pane->mTranslateX;
+		mPosList1[i].y = pane->mTranslateY;
+	}
+
+	mPaneAButton = screen->search(MC64('Nabtn', 0x4E6162746E));
+	P2ASSERTLINE(1270, mPaneAButton);
+	mPaneAButton->setInfluencedAlpha(false, false);
+
+	mResultDemoScreen = new TChallengeResultDemoScreen(arc, 2);
+	mResultDemoScreen->create("challenge_modo_result_demo.blo", 0x20000);
+	mResultDemoScreen->addAnim("challenge_modo_result_demo.bck");
+	mResultDemoScreen->addAnim("challenge_modo_result_demo.bva");
+	backupheap->becomeCurrentHeap();
+	setInfo();
+}
+
+/**
+ * @note Address: 0x80395F4C
+ * @note Size: 0x9C0
+ */
+bool TChallengeResult::doUpdate()
+{
+	if (mIsSection && mForceDemoStart) {
+		mForceDemoStart = false;
+		setInfo();
+		startDemo();
+	}
+	mSaveMgr->update();
+	if (!mIsSaveOpen) {
+		mResultScreen->update();
+	}
+	if (!mIsSaveOpen) {
+		mResultDemoScreen->update();
+	}
+
+	// this feels at least somewhat fake, but it works
+	const JGeometry::TVec3f& bottomLeft = mPane6->getGlbVtx(GLBVTX_BtmLeft);
+	f32 x0                              = bottomLeft.x;
+	f32 y0                              = bottomLeft.y;
+	const JGeometry::TVec3f& topRight   = mPane6->getGlbVtx(GLBVTX_TopRight);
+	JGeometry::TBox2f box;
+	box.i.x              = x0;
+	box.i.y              = y0;
+	box.f.y              = topRight.y;
+	box.f.x              = topRight.x;
+	mScissorPic->mBounds = box;
+
+	if (mIsSaveOpen && mSaveMgr->isFinish()) {
+		if (mSaveMgr->mEndState == ebi::Save::TMgr::End_Cancel) {
+			if (mComplete) {
+				u16 y = sys->getRenderModeObj()->efbHeight;
+				u16 x = sys->getRenderModeObj()->fbWidth;
+
+				efx2d::Arg arg(Vector2f(x * 0.5f, y * 0.5f));
+				mEfxCompLoop->create(&arg);
+			}
+			mIsSaveOpen = false;
+		} else if (mIsSection) {
+			mIsSaveOpen = false;
+		} else {
+			mDisp->_10 = 1;
+			getOwner()->endScene(nullptr);
+		}
+	}
+
+	if (mCanInput && mDisp->_10 == 0) {
+		if (mDemoState == 6) {
+			if (mControls->getButtonDown() & Controller::PRESS_A) {
+				// skip prompt to save in certain test versions of the game
+				if (Game::gGameConfig.mParms.mNintendoVersion.mData || Game::gGameConfig.mParms.mE3version.mData) {
+					mDisp->_10 = 1;
+					getOwner()->endScene(nullptr);
+					mCanInput = false;
+				} else {
+					if (!mIsSaveOpen) {
+						mIsSaveOpen = true;
+						mSaveMgr->setControllers(getGamePad());
+						mSaveMgr->mIsStoryGameSave = 1;
+						mSaveMgr->mSaveType        = 1;
+						mSaveMgr->start();
+						mSaveMgr->update();
+						if (mComplete) {
+							mEfxCompLoop->fade();
+						}
+						fadeEffect();
+					}
+				}
+			}
+		} else if (mControls->getButton() & Controller::PRESS_A) {
+			mDemoSpeedUpRate = mDemoSpeedUpMax;
+		} else if (mDemoSpeedUpRate < mSpeed) {
+			mDemoSpeedUpRate = mSpeed;
+		}
+	}
+
+	for (int i = 0; i < 3; i++) {
+		mCounters1[i]->getMotherPane()->setOffset(mPosList1[i].x + mPosList2[i].x, mPosList1[i].y + mPosList2[i].y);
+		mOnyonMovePane[i]->update();
+	}
+
+	for (int i = 0; i < 4; i++) {
+		mResultCounters[i]->update();
+	}
+
+	mCounter2->getMotherPane()->setOffset(mPokoCountOffsetX + mMoveTimer, mPokoCountOffsetY);
+	if (mMoveTimer > 0.0f) {
+		mMoveTimer += 20.0f * mDemoSpeedUpRate;
+	}
+	if (mMoveTimer > 600.0f) {
+		bool doSe = false;
+		for (int i = 0; i < 3; i++) {
+			if (i == 0 && mPosList2[i].x != 0.0f) {
+				doSe = true;
+			}
+			mPosList2[i].x = -(20.0f * mDemoSpeedUpRate - mPosList2[i].x);
+			if (mPosList2[i].x < 0.0f) {
+				mPosList2[i].x = 0.0f;
+			}
+			if (doSe && mPosList2[i].x == 0.0f) {
+				PSSystem::spSysIF->playSystemSe(PSSE_SY_CHALLENGE_SCORE_L, 0);
+			}
+			if (mPosList2[i].x < 100.0f && i >= mRankInSlot) {
+				mPosList2[i].y += 5.0f * mDemoSpeedUpRate;
+				f32 comp = 100.0f;
+				if (i < 2) {
+					comp = _1CC;
+				}
+				if (mPosList2[i].y > comp) {
+					mPosList2[i].y = comp;
+					if (i == 2) {
+						mFlags[3] = 1;
+					}
+				}
+			}
+		}
+	}
+
+	for (int i = 0; i < 3; i++) {
+		mCounters1[i]->getMotherPane()->setOffset(mPosList1[i].x, mPosList1[i].y + mPosList2[i].y);
+		mHighScoreCounter[i]->getMotherPane()->setOffset(mPosList1[i].x + mPosList2[i].x, mPosList1[i].y);
+	}
+
+	if (mFlags[3]) {
+		mTimer += 1.0f;
+		if (mTimer > mFlashInterval) {
+			mTimer = 0.0f;
+		}
+		f32 calc = (mTimer / TChallengeResult::mFlashInterval) * TAU;
+		calc     = absF(sinf(calc));
+
+		f32 calc1 = 1.0f - calc;
+		u8 r      = mFlashColor[0] * calc1 + calc * 255.0f;
+		u8 g      = mFlashColor[1] * calc1 + calc * 255.0f;
+		u8 b      = mFlashColor[2] * calc1 + calc * 255.0f;
+
+		mCounter1->setColor(r, g, b, 255);
+		for (int i = 0; i < 3; i++) {
+			mHighScoreCounter[i]->setColor(r, g, b, 255);
+		}
+	}
+
+	if (mDemoState == 6) {
+		mPaneAButton->show();
+		if (mAButtonAlphaTimer < 1.0f) {
+			mAButtonAlphaTimer += 0.1f;
+			if (mAButtonAlphaTimer > 1.0f) {
+				mAButtonAlphaTimer = 1.0f;
+			}
+		}
+		u8 alpha = mResultScreen->getScreenAlpha();
+		mPaneAButton->setAlpha(mAButtonAlphaTimer * alpha);
+	} else {
+		mAButtonAlphaTimer = 0.0f;
+		mPaneAButton->hide();
+	}
+
+	if (mDemoState != 0) {
+		updateDemo();
+	}
+	return false;
+}
+
+/**
+ * @note Address: 0x8039690C
+ * @note Size: 0x160
+ */
+void TChallengeResult::doDraw(Graphics& gfx)
+{
+	J2DPerspGraph* graf = &gfx.mPerspGraph;
+	mResultScreen->draw(gfx, graf);
+	mResultDemoScreen->draw(gfx, graf);
+	if (mIsSaveOpen) {
+		mSaveMgr->draw();
+	}
+	gfx.mPerspGraph.setPort();
+	JUtility::TColor color;
+	color = JUtility::TColor(0, 0, 0, 255 - mFadeAlpha);
+	graf->setColor(color);
+	GXSetAlphaUpdate(GX_FALSE);
+
+	f32 zero = 0.0f;
+	u16 y    = System::getRenderModeObj()->efbHeight;
+	u16 x    = System::getRenderModeObj()->fbWidth;
+	graf->fillBox(JGeometry::TBox2f(0.0f, 0.0f, zero + x, zero + y));
+
+	GXSetAlphaUpdate(GX_TRUE);
+}
+
+/**
+ * @note Address: 0x80396A6C
+ * @note Size: 0x5C
+ */
+void TChallengeResult::doUpdateFadeoutFinish()
+{
+	P2ASSERTLINE(1566, mDisp);
+	mDisp->_10 = 2;
+}
+
+/**
+ * @note Address: 0x80396AC8
+ * @note Size: 0xEDC
+ */
+void TChallengeResult::setInfo()
+{
+	mDemoState  = 0;
+	mIsSaveOpen = false;
+
+	for (int i = 0; i < 3; i++) {
+		mHighScoreCounter[i]->setColor(255, 255, 255, 255);
+	}
+	mCounter1->setColor(255, 255, 255, 255);
+
+	for (int i = 0; i < 5; i++) {
+		mClearTexture[i]->resetTexture();
+	}
+
+	mFlags[3] = 0;
+	mPaneAButton->hide();
+
+	int test = randInt(6);
+	if (test >= 5) {
+		test = 5;
+	}
+	const int* data = &cRandArray[test * 3];
+	for (int i = 0; i < 3; i++) {
+		mOnyonMovePane[i]->setPane(mOnyonPane[data[i]]);
+		mPosList2[i] = 0.0f;
+		mHighScoreCounter[i]->getMotherPane()->hide();
+		mHighScoreCounter[i]->reset();
+
+		mOnyonMovePane[i]->reset();
+		mPosList2[i] = 0.0f;
+		fadeEffect();
+	}
+
+	mCounter1->reset();
+	mCounter3->reset();
+	mCounter4->reset();
+	mCounter5->reset();
+	mCounter2->getMotherPane()->hide();
+	mCounter2->reset();
+
+	mMoveTimer = 0.0f;
+	mFlags[0]  = 0;
+	mFlags[1]  = false;
+	mFlags[2]  = false;
+
+	mResultDemoScreen->reset();
+
+	for (int i = 0; i < 3; i++) {
+		mCounters1[i]->setBlind(false);
+	}
+
+	if (mIsSection) {
+		mRankInSlot = mTestRankInOrder;
+		if (randFloat() < 0.5f) {
+			mFlags[0] |= ChalResult_Is2Player;
+		}
+		if (mTestDemo) {
+			if (mComplete) {
+				mFlags[0] |= 4;
+			} else {
+				mFlags[0] |= 2;
+			}
+		}
+		mHighScoreValues[0] = randFloat() * 90000.0f + 1000.0f;
+		mHighScoreValues[1] = randFloat() * 9000.0f + 100.0f;
+		mHighScoreValues[2] = randFloat() * 900.0f + 10.0f;
+		mScoreTotal         = randFloat() * 90000.0f + 100.0f;
+		mPokoCount          = mTestDefaultPokoScore;
+		mTimeBonus          = randFloat() * 900.0f + 1000.0f;
+		mPikiCount          = randFloat() * 9999.0f;
+
+		f32 test = randFloat();
+		if (test < 0.1f) {
+			for (int i = 0; i < 3; i++) {
+				mCounters1[i]->setBlind(false);
+			}
+		} else if (test < 0.2f) {
+			mCounters1[1]->setBlind(true);
+			mCounters1[2]->setBlind(true);
+		} else if (test < 0.4f) {
+			mCounters1[2]->setBlind(true);
+		}
+		rand();
+		Game::ChallengeGame::StageData* data = mStageList->getStageData(mTestStageId);
+		P2ASSERTLINE(1683, data);
+		int id = data->mStageIndex - 1;
+		mPane1->setMsgID(mMesgOffs->getMsgID(id));
+		mPane2->setMsgID(mMesgOffs->getMsgID(id));
+	} else {
+		Game::Challenge2D_ResultInfo* info = mDisp->mResultInfo;
+		mFlags[0]                          = info->mDisplayFlag.byteView[0];
+		mScoreTotal                        = info->mScore;
+		mPokoCount                         = info->mPokos;
+		mTimeBonus                         = info->mTimeLeft;
+		mPikiCount                         = info->mPikminLeft;
+		for (int i = 0; i < 3; i++) {
+			if (info->mHighScore->getScore(i) == -1) {
+				mCounters1[i]->setBlind(true);
+			} else {
+				mHighScoreValues[i] = info->mHighScore->getScore(i);
+			}
+		}
+		mRankInSlot = info->mHighScore->entryScore(info->mScore);
+		mPane1->setMsgID(mMesgOffs->getMsgID(info->mDisplayIndex - 1));
+		mPane2->setMsgID(mMesgOffs->getMsgID(info->mDisplayIndex - 1));
+		startDemo();
+	}
+
+	JUT_ASSERTLINE(1713, mHighScoreValues[0] < 1000000, "hiscore0 = %d\n", mHighScoreValues[0]);
+	JUT_ASSERTLINE(1714, mHighScoreValues[1] < 1000000, "hiscore1 = %d\n", mHighScoreValues[1]);
+	JUT_ASSERTLINE(1715, mHighScoreValues[2] < 1000000, "hiscore2 = %d\n", mHighScoreValues[2]);
+	JUT_ASSERTLINE(1716, mScoreTotal < 1000000, "total = %d\n", mScoreTotal);
+	JUT_ASSERTLINE(1717, mTimeBonus < 100000, "timebonus = %d\n", mTimeBonus);
+	JUT_ASSERTLINE(1718, mPokoCount < 100000, "money = %d\n", mPokoCount);
+	JUT_ASSERTLINE(1719, mPikiCount < 10000, "piki = %d\n", mPikiCount);
+
+	if (mFlags[0] & ChalResult_Is2Player) {
+		mPanePlayerNum->setMsgID(MC64('4861_00', 0x343836315F3030));       // "1-Player Challenge"
+		mPanePlayerNumShadow->setMsgID(MC64('4861_00', 0x343836315F3030)); // "1-Player Challenge"
+	} else {
+		mPanePlayerNum->setMsgID(MC64('4870_00', 0x343837305F3030));       // "2-Player Challenge"
+		mPanePlayerNumShadow->setMsgID(MC64('4870_00', 0x343837305F3030)); // "2-Player Challenge"
+	}
+
+	mResultDemoScreen->setComplete(false);
+
+	if (mFlags[0] & 0x10) {
+		for (int i = 0; i < 5; i++) {
+			mClearTexture[i]->changeTexture(true);
+		}
+	} else {
+		if (mFlags[0] & 4) {
+			mResultDemoScreen->setComplete(true);
+			mFlags[1] = 1;
+		}
+
+		if (mFlags[0] & 8) {
+			for (int i = 0; i < 5; i++) {
+				mClearTexture[i]->changeTexture(false);
+			}
+		} else if (mFlags[0] & 2) {
+			mFlags[1] = 1;
+		}
+	}
+
+	if (!mFlags[1] && mFlags[0] & 0x10 && mFlags[0] & 4) {
+		mResultDemoScreen->setComplete(true);
+		mFlags[2] = true;
+	}
+
+	if (mComplete) {
+		mEfxCompLoop->kill();
+	}
+}
+
+/**
+ * @note Address: 0x803979A4
+ * @note Size: 0x1250
+ */
+void TChallengeResult::updateDemo()
+{
+	switch (mDemoState) {
+	case 1: {
+		if (mCounter == 10) {
+			PSSystem::spSysIF->playSystemSe(PSSE_SY_CHALLENGE_ONY_MOVE, 0);
+			mOnyonMovePane[0]->mState   = 1;
+			TMovePane* mpane            = mOnyonMovePane[0];
+			mpane->mOffset.x            = mVecUnit[0]._00.x;
+			mpane->mOffset.y            = mVecUnit[0]._00.y;
+			mOnyonMovePane[0]->mCounter = 1;
+			mOnyonMovePane[0]->_48      = 0;
+		}
+		if (mCounter == 30) {
+			PSSystem::spSysIF->playSystemSe(PSSE_SY_CHALLENGE_ONY_MOVE, 0);
+			mOnyonMovePane[1]->mState   = 1;
+			TMovePane* mpane            = mOnyonMovePane[1];
+			mpane->mOffset.x            = mVecUnit[1]._00.x;
+			mpane->mOffset.y            = mVecUnit[1]._00.y;
+			mOnyonMovePane[1]->mCounter = 1;
+			mOnyonMovePane[1]->_48      = 1;
+		}
+		if (mCounter == 50) {
+			PSSystem::spSysIF->playSystemSe(PSSE_SY_CHALLENGE_ONY_MOVE, 0);
+			mOnyonMovePane[2]->mState   = 1;
+			TMovePane* mpane            = mOnyonMovePane[2];
+			mpane->mOffset.x            = mVecUnit[2]._00.x;
+			mpane->mOffset.y            = mVecUnit[2]._00.y;
+			mOnyonMovePane[2]->mCounter = 1;
+			mOnyonMovePane[2]->_48      = 2;
+		}
+
+		bool check = true;
+		for (int i = 0; i < 3; i++) {
+			int id1 = mOnyonMovePane[i]->getID();
+			int id2 = mOnyonMovePane[i]->getState();
+			{
+				// yes this really cant be a macro since the order of checks is inverted for some reason
+				// unless you want to add a whole new macro for this alone of course :)
+				bool check = false;
+				if (3 >= id1 && id1 >= 0) {
+					check = true;
+				}
+				P2ASSERTLINE(1813, check);
+			}
+			if (mResultCounters[id1]->checkState(2) == false) {
+				if (mOnyonMovePane[i]->mCounter > 0) {
+					if (id2 == 0) {
+						mOnyonMovePane[i]->mState = 2;
+						f32 x                     = mVecUnit[id1]._00.x;
+						f32 xSpan                 = x - mVecUnit[id1]._08.x;
+						f32 y                     = mResultCounters[id1]->getFillRate();
+						mOnyonMovePane[i]->mOffset.set(-(xSpan * y - x), mVecUnit[id1]._08.y);
+						mOnyonMovePane[i]->mCounter = 1;
+					} else if (id2 == 2) {
+						if (FABS(mOnyonMovePane[i]->getAngDist()) < 0.05f) {
+							if ((f32)mOnyonMovePane[i]->mCounter > 60.0f / mDemoSpeedUpRate) {
+								mOnyonMovePane[i]->mState = 1;
+								PSSystem::spSysIF->playSystemSe(PSSE_SY_CHALLENGE_SCORE_S, 0);
+								int calc                     = (f32)_1DC / mDemoSpeedUpRate;
+								TChallengeResultCounter* ctr = mResultCounters[id1];
+								ctr->_20                     = calc;
+								ctr->_1C                     = calc;
+							}
+						}
+					}
+				}
+				check = false;
+			} else {
+				switch (id1) {
+				case 0:
+					mCounter3->start();
+					break;
+				case 1:
+					mCounter5->start();
+					break;
+				case 2:
+					mCounter4->start();
+					break;
+				}
+				if (i == _1E8 && mOnyonMovePane[i]->_48 != 3) {
+					mOnyonMovePane[i]->mState = 1;
+					PSSystem::spSysIF->playSystemSe(PSSE_SY_CHALLENGE_SCORE_L, 0);
+					PSSystem::spSysIF->playSystemSe(PSSE_SY_PIKI_INCREMENT, 0);
+					TMovePane* mpane            = mOnyonMovePane[i];
+					mpane->mOffset.x            = mVecUnit[3]._00.x;
+					mpane->mOffset.y            = mVecUnit[3]._00.y;
+					mOnyonMovePane[i]->mCounter = 1;
+					mOnyonMovePane[i]->_48      = 3;
+				}
+			}
+		}
+		if (check) {
+			if (mResultCounters[3]->mState == 2) {
+				mCounter1->start();
+				if (mRankInSlot >= 0) {
+					mDemoState = 2;
+					int test   = randInt(6);
+					if (test >= 5) {
+						test = 5;
+					}
+					int id                       = cRandArray[test * 3];
+					TMovePane* mpane             = mOnyonMovePane[id];
+					mpane->mOffset.x             = mVecUnit[3]._00.x;
+					mpane->mOffset.y             = mVecUnit[3]._00.y;
+					mOnyonMovePane[id]->mState   = 1;
+					mOnyonMovePane[id]->mCounter = 1;
+
+					f32 x     = mVecUnit[3]._00.x;
+					f32 xSpan = x - mVecUnit[3]._08.x;
+					f32 y     = mResultCounters[3]->getFillRate();
+					mOnyonMovePane[cRandArray[test * 3 + 1]]->mOffset.set(-(xSpan * y - x), mVecUnit[3]._08.y);
+					mOnyonMovePane[cRandArray[test * 3 + 1]]->mState   = 1;
+					mOnyonMovePane[cRandArray[test * 3 + 1]]->mCounter = 1;
+					mOnyonMovePane[cRandArray[test * 3 + 2]]->start();
+				} else {
+					changeAnimDemo();
+				}
+			}
+		} else {
+			PSSystem::spSysIF->playSystemSe(PSSE_SY_CHALLENGE_SCOREROLL, 0);
+		}
+		break;
+	}
+	case 2: {
+		bool check = true;
+		// typo? this loop will never run
+		for (int i = 0; i > 3; i++) {
+			if (mOnyonMovePane[i]->mCounter && mOnyonMovePane[i]->mState) {
+				check = false;
+			}
+		}
+		bool panesReady = check;
+		if (check) {
+			for (int i = 0; i < 3; i++) {
+				if (mOnyonMovePane[i]->mCounter) {
+					int state = mOnyonMovePane[i]->mState;
+					if (state == 0) {
+						mOnyonMovePane[i]->mState = 2;
+						Vector2f goal             = mVecUnit[3]._00;
+						goal.x += 300.0f;
+						mOnyonMovePane[i]->mOffset = goal;
+					}
+					// what even man (this is never going to be true, surely a typo?)
+					if ((state == 0) == 2 || FABS(mOnyonMovePane[i]->getAngDist()) > 0.01f) {
+						panesReady = false;
+					}
+				}
+			}
+		}
+		if (panesReady) {
+			for (int i = 0; i < 3; i++) {
+				if (mOnyonMovePane[i]->mCounter > 0) {
+					J2DPicture* pic = mCounter2->getKetaPicture(0);
+					mOnyonMovePane[i]->startStick(pic);
+				}
+			}
+			PSSystem::spSysIF->playSystemSe(PSSE_SY_CHALLENGE_ONY_MOVE, 0);
+			mDemoState = 3;
+			startRankInDemo();
+		}
+		break;
+	}
+	case 3: {
+		if (mMoveTimer > 550.0f) {
+			f32 test = 0.0f;
+			int id   = 0;
+			for (int i = 0; i < 3; i++) {
+				if (mOnyonMovePane[i]->mCounter > 0) {
+					if (test < mOnyonMovePane[i]->mPaneGoal.x) {
+						id   = i;
+						test = mOnyonMovePane[i]->mPaneGoal.x;
+					}
+				}
+			}
+			for (int i = 0; i < 3; i++) {
+				if (mOnyonMovePane[i]->mCounter > 0) {
+					P2ASSERTLINE(1977, mRankInSlot >= 0);
+
+					J2DPicture* pic = mHighScoreCounter[mRankInSlot]->getKetaPicture(0);
+
+					TMovePane* mpane = mOnyonMovePane[i];
+					f32 x            = pic->mGlobalMtx[0][3] - 1000.0f;
+					f32 offsetX      = x;
+					x                = _168._00.y + pic->mGlobalMtx[1][3];
+					mpane->mOffset.set(offsetX, x);
+					mOnyonMovePane[i]->forceTurn();
+					if (i == id) {
+						mOnyonMovePane[i]->mPaneGoal.set(_168._00.x + pic->mGlobalMtx[0][3], x);
+					} else {
+						f32 y = mResultCounters[3]->getFillRate();
+						mOnyonMovePane[i]->mPaneGoal.set(_168._08.x * y + pic->mGlobalMtx[0][3], x);
+					}
+					mOnyonMovePane[i]->startStick(pic);
+					mOnyonMovePane[i]->mCounter = 0;
+				}
+			}
+		}
+		if (mFlags[3]) {
+			f32 calc[3] = { 1.0f, 0.9f, 0.8f };
+			P2ASSERTLINE(2002, mRankInSlot >= 0);
+			TChallengeResultCounter result = *mResultCounters[3];
+			mHighScoreCounter[mRankInSlot]->createKiraEffect(calc[mRankInSlot], result.mDigits);
+			changeAnimDemo();
+		}
+		break;
+	}
+	case 4: {
+		for (int i = 0; i < 3; i++) {
+			TMovePane* mpane = mOnyonMovePane[i];
+			if (mpane->mState == 0) {
+				PSSystem::spSysIF->playSystemSe(PSSE_SY_CHALLENGE_ONY_SPIN, 0);
+				mOnyonMovePane[i]->mState   = 5;
+				mOnyonMovePane[i]->mCounter = 1;
+			} else if (mpane->mState == 5) {
+				if ((f32)mpane->mCounter > 50.0f / mDemoSpeedUpRate) {
+					int id      = mpane->_44;
+					bool enable = false;
+					if (mFlags[0] & 4) {
+						enable = true;
+					}
+					mClearTexture[id]->changeTexture(enable);
+					PSSystem::spSysIF->playSystemSe(PSSE_SY_CHALLENGE_FLOWER, 0);
+
+					Vector2f pos;
+					mClearTexture[id]->getEffectPosition(pos);
+					efx2d::Arg arg(pos);
+					efx2d::T2DChangesmoke efx;
+					efx.create(&arg);
+					if (mClearTexture[3]->_00 == 0) {
+						Vector2f test;
+						mClearTexture[3]->getPosition(test);
+						mClearTexture[3]->_00      = 1;
+						mOnyonMovePane[i]->mOffset = test;
+						mOnyonMovePane[i]->_44     = 3;
+						mOnyonMovePane[i]->mState  = 1;
+					} else {
+						if (mClearTexture[4]->_00 == 0) {
+							Vector2f test;
+							mClearTexture[4]->getPosition(test);
+							mClearTexture[4]->_00      = 1;
+							mOnyonMovePane[i]->mOffset = test;
+							mOnyonMovePane[i]->_44     = 4;
+							mOnyonMovePane[i]->mState  = 1;
+						} else {
+							mOnyonMovePane[i]->start();
+							mDemoState = 5;
+						}
+					}
+				}
+			}
+		}
+		break;
+	}
+	case 5: {
+		bool check = true;
+		for (int i = 0; i < 3; i++) {
+			TMovePane* mpane = mOnyonMovePane[i];
+			if (mpane->mCounter) {
+				check = false;
+				if (mpane->mState == 0) {
+					PSSystem::spSysIF->playSystemSe(PSSE_SY_CHALLENGE_ONY_SPIN, 0);
+					mOnyonMovePane[i]->mState   = 5;
+					mOnyonMovePane[i]->mCounter = 1;
+				} else if (mpane->mState == 5) {
+					if ((f32)mpane->mCounter > 50.0f / mDemoSpeedUpRate) {
+						int id      = mpane->_44;
+						bool enable = false;
+						if (mFlags[0] & 4) {
+							enable = true;
+						}
+						mClearTexture[id]->changeTexture(enable);
+						PSSystem::spSysIF->playSystemSe(PSSE_SY_CHALLENGE_FLOWER, 0);
+
+						Vector2f pos;
+						mClearTexture[id]->getEffectPosition(pos);
+						efx2d::Arg arg(pos);
+						efx2d::T2DChangesmoke efx;
+						efx.create(&arg);
+						mOnyonMovePane[i]->start();
+					}
+				}
+			}
+		}
+		if (check) {
+			mDemoState = 6;
+		}
+		break;
+	}
+	case 6: {
+		if (mRankInSlot >= 0 && mResultScreen->isRandAnimStart()) {
+			mCounter1->startScaleAnim();
+			mHighScoreCounter[mRankInSlot]->startScaleAnim();
+		}
+		break;
+	}
+	}
+	mCounter++;
+}
+
+/**
+ * @note Address: 0x80398BF4
+ * @note Size: 0x540
+ */
+void TChallengeResult::changeAnimDemo()
+{
+	if (mFlags[1]) {
+		mDemoState = 4;
+		if (mComplete) {
+			PSSystem::spSysIF->playSystemSe(PSSE_CHALLENGE_PERFECTCLEAR, 0);
+			u16 y = sys->getRenderModeHeight();
+			u16 x = sys->getRenderModeWidth();
+			efx2d::Arg arg(Vector2f(0.5f * (f32)x, 0.5f * (f32)y));
+			mEfxCompLoop->create(&arg);
+
+			mResultDemoScreen->mScreenObj->search(MC64('Nribon', 0x4E7269626F6E));
+
+			efx2d::Arg arg2(Vector2f(140.0f, 100.0f));
+			efx2d::T2DCavecomp efx;
+			efx.create(&arg2);
+		} else {
+			PSSystem::spSysIF->playSystemSe(PSSE_CHALLENGE_COURSECLEAR, 0);
+		}
+		mResultDemoScreen->startDemo();
+		int test = randInt(6);
+		if (test >= 5) {
+			test = 5;
+		}
+		const int* data = &cRandArray[test * 3];
+		for (int i = 0; i < 3; i++) {
+			Vector2f pos;
+			mClearTexture[data[i]]->getPosition(pos);
+			mClearTexture[data[i]]->_00 = 1;
+
+			mOnyonMovePane[i]->_44     = data[i];
+			mOnyonMovePane[i]->mOffset = pos;
+			mOnyonMovePane[i]->mState  = 1;
+		}
+	} else {
+		if (mFlags[2]) {
+			if (mComplete) {
+				PSSystem::spSysIF->playSystemSe(PSSE_CHALLENGE_PERFECTCLEAR, 0);
+				u16 y = sys->getRenderModeHeight();
+				u16 x = sys->getRenderModeWidth();
+				efx2d::Arg arg(Vector2f(0.5f * (f32)x, 0.5f * (f32)y));
+				mEfxCompLoop->create(&arg);
+
+				mResultDemoScreen->mScreenObj->search(MC64('Nribon', 0x4E7269626F6E));
+
+				// raining confetti particles
+				efx2d::Arg arg2(Vector2f(140.0f, 100.0f));
+				efx2d::T2DCavecomp efx;
+				efx.create(&arg2);
+			} else {
+				PSSystem::spSysIF->playSystemSe(PSSE_CHALLENGE_COURSECLEAR, 0);
+			}
+			mResultDemoScreen->startDemo();
+		}
+		mDemoState = 6;
+
+		for (int i = 0; i < 3; i++) {
+			mOnyonMovePane[i]->start();
+		}
+	}
+}
+
+/**
+ * @note Address: 0x80399134
+ * @note Size: 0x220
+ */
+void TChallengeResult::startRankInDemo()
+{
+	if (mRankInSlot >= 0) {
+		mMoveTimer = 1.0f;
+		mCounter2->getMotherPane()->show();
+		mCounter2->createKiraEffect(1.0f, mResultCounters[3]->mDigits);
+
+		for (int i = 0; i < 3; i++) {
+			if (i == mRankInSlot) {
+				mHighScoreCounter[i]->getMotherPane()->show();
+			}
+			mPosList2[i].x = 400.0f;
+			mPosList2[i].y = 0.0f;
+			mHighScoreCounter[i]->getMotherPane()->setOffset(mPosList1[i].x + mPosList2[i].x, mPosList1[i].y);
+		}
+
+		mTimer = 0.0f;
+	}
+}
+
+/**
+ * @note Address: 0x80399354
+ * @note Size: 0x17C
+ */
+void TChallengeResult::startDemo()
+{
+	mDemoSpeedUpRate = mSpeed;
+	if (mDemoState == 0) {
+		mDemoState = 1;
+		for (int i = 0; i < 4; i++) {
+			mResultCounters[i]->start();
+		}
+	}
+	mCounter = 0;
+}
+
+/**
+ * @note Address: 0x803994D0
+ * @note Size: 0x120
+ */
+void TChallengeResult::fadeEffect()
+{
+	mCounter2->fadeKiraEffect();
+	for (int i = 0; i < 3; i++) {
+		mHighScoreCounter[i]->fadeKiraEffect();
+	}
+}
+
+/**
+ * @note Address: 0x803995F0
+ * @note Size: 0xB0
+ */
+void TChallengeResultScene::doUserCallBackFunc(Resource::MgrCommand*)
+{
+	og::newScreen::makeLanguageResName(mName, "res_challengeResult.szs");
+	LoadResource::Arg arg(mName);
+	LoadResource::Node* node = gLoadResourceMgr->mountArchive(arg);
+	P2ASSERTLINE(2345, node);
+	JKRArchive* arc = node->getArchive();
+
+	TChallengeResult* obj = new TChallengeResult;
+	registObj(obj, arc);
+	mObject = obj;
+}
+
+} // namespace Morimura

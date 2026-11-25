@@ -1,0 +1,458 @@
+/*
+ * Rules shared by every launcher document (merged in first by ui/document.cpp, so a document's own
+ * sheets win ties). DESIGN.md 5.1, 5.13, 5.15-5.17 and the accessibility classes of section 9.
+ *
+ * RmlUi has no pseudo-elements, so decorative parts (leaves, knobs, sprouts) are real child
+ * elements that the C++ components create; their shared shapes live here.
+ */
+*, *:before, *:after {
+    box-sizing: border-box;
+}
+
+b {
+    font-weight: 800;
+}
+
+p,
+heading,
+text-list,
+text-list item,
+file-path {
+    display: block;
+}
+
+heading {
+    font-family: var(--font-family-heading);
+    font-weight: 600;
+    line-height: 1.3;
+}
+
+small,
+file-path,
+status-badge {
+    font-family: var(--font-family-body);
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+    line-height: 1.4;
+    color: var(--text-secondary);
+}
+
+file-path {
+    font-family: var(--font-family-monospace);
+    font-weight: normal;
+    word-break: break-all;
+}
+
+ui-row {
+    display: flex;
+    flex-flow: row;
+    align-items: center;
+    gap: var(--space-sm);
+    min-width: 0;
+    focus: none;
+}
+
+ui-row > * {
+    flex: 0 1 auto;
+    min-width: 0;
+}
+
+button,
+select-button {
+    cursor: pointer;
+    focus: auto;
+}
+
+/* ---- Icons (DESIGN.md 3.7): Material Symbols Rounded glyphs ---- */
+
+icon {
+    width: 1em;
+    height: 1em;
+    font-family: var(--font-family-icons);
+    font-weight: normal;
+    line-height: 1;
+    display: inline-block;
+    vertical-align: middle;
+}
+
+icon.warning { decorator: text("&#xe002;" center center); }
+icon.error { decorator: text("&#xe000;" center center); }
+icon.verifying { decorator: text("&#xe8b5;" center center); }
+icon.download { decorator: text("&#xe2c4;" center center); }
+icon.celebration { decorator: text("&#xea65;" center center); }
+icon.question-mark { decorator: text("&#xeb8b;" center center); }
+icon.arrow-forward { decorator: text("&#xe5c8;" center center); }
+icon.trophy { decorator: text("&#xe71a;" center center); }
+icon.controller { decorator: text("&#xf135;" center center); }
+icon.download-done { decorator: text("&#xf091;" center center); }
+icon.check { decorator: text("&#xe5ca;" center center); }
+icon.close { decorator: text("&#xe5cd;" center center); }
+icon.help { decorator: text("&#xe887;" center center); }
+icon.info { decorator: text("&#xe88e;" center center); }
+icon.success { decorator: text("&#xe86c;" center center); }
+icon.autorenew { decorator: text("&#xe863;" center center); }
+icon.restart { decorator: text("&#xf053;" center center); }
+icon.rocket { decorator: text("&#xeb9b;" center center); }
+icon.album { decorator: text("&#xe019;" center center); }
+icon.settings { decorator: text("&#xe8b8;" center center); }
+icon.power { decorator: text("&#xf8c7;" center center); }
+icon.extension { decorator: text("&#xe87b;" center center); }
+icon.group { decorator: text("&#xea21;" center center); }
+icon.sprout { decorator: text("&#xe123;" center center); }
+icon.eco { decorator: text("&#xea35;" center center); }
+icon.flower { decorator: text("&#xe545;" center center); }
+icon.open-in-new { decorator: text("&#xe89e;" center center); }
+icon.folder { decorator: text("&#xe2c8;" center center); }
+icon.chevron-left { decorator: text("&#xe5cb;" center center); }
+icon.chevron-right { decorator: text("&#xe5cc;" center center); }
+icon.expand-more { decorator: text("&#xe5cf;" center center); }
+
+mod-icon {
+    display: block;
+    flex: 0 0 auto;
+    width: 56dp;
+    height: 56dp;
+    border-radius: var(--radius-panel);
+    font-family: var(--font-family-icons);
+    font-size: 36dp;
+    background-color: rgba(var(--color-control-rgb), 45%);
+    color: var(--text-tertiary);
+    decorator: text("&#xe87b;" center center);
+    overflow: hidden;
+}
+
+mod-icon img,
+mod-icon-image {
+    display: block;
+    width: 100%;
+    height: 100%;
+    border-radius: var(--radius-panel);
+}
+
+status-badge.success { color: var(--color-success); }
+status-badge.error { color: var(--color-error-text); }
+status-badge.warning { color: var(--color-warning); }
+status-badge.info { color: var(--color-info); }
+
+/* ---- Leaf: the shared sprout shape (DESIGN.md 5.3) ----
+ * A square with two opposite corners rounded. `.l` leans up and left from its bottom-right corner,
+ * `.r` up and right from its bottom-left, so the pair reads as a two-leaf sprout. Containers place
+ * and size them. */
+leaf {
+    display: block;
+    position: absolute;
+    width: 12dp;
+    height: 12dp;
+    background-color: var(--color-leaf);
+    decorator: linear-gradient(135deg, #B9F27C 0%, #5FBF3A 100%);
+}
+
+leaf.l {
+    border-radius: 1dp 12dp 1dp 12dp;
+}
+
+leaf.r {
+    border-radius: 12dp 1dp 12dp 1dp;
+    decorator: linear-gradient(225deg, #B9F27C 0%, #5FBF3A 100%);
+}
+
+stem {
+    display: block;
+    position: absolute;
+    background-color: var(--color-leaf);
+    border-radius: 2dp;
+}
+
+/* ---- Glass orb (DESIGN.md 5.16): small round things that sit on the scene ---- */
+
+.orb,
+orb {
+    display: block;
+    border-radius: 999dp;
+    background-color: rgba(var(--color-surface-rgb), 55%);
+    box-shadow: 0 6dp 18dp 0 rgba(5, 11, 26, 60%), inset 5dp 7dp 12dp 0 rgba(255, 255, 255, 18%), inset -6dp -10dp 18dp 0 rgba(5, 11, 26, 50%), 0 0 0 2dp rgba(111, 182, 222, 55%);
+    backdrop-filter: blur(8dp);
+}
+
+.orb.flat,
+orb.flat {
+    backdrop-filter: none;
+}
+
+/* ---- Progress, loaders (DESIGN.md 5.15): the sun crossing the day meter ---- */
+
+progress {
+    display: block;
+    width: 100%;
+    height: 10dp;
+    border-radius: 5dp;
+    background-color: rgba(var(--color-white-rgb), 10%);
+    box-shadow: inset 0 1dp 3dp 0 rgba(5, 11, 26, 60%);
+}
+
+progress fill {
+    border-radius: 5dp;
+    background-color: #FFC94D;
+    decorator: linear-gradient(90deg, #FFE27A 0%, #FFB13B 100%);
+    box-shadow: 4dp 0 12dp 0 rgba(255, 177, 59, 60%);
+}
+
+progress.success fill,
+progress.installed fill {
+    background-color: var(--color-success);
+    decorator: none;
+    box-shadow: none;
+}
+
+progress.info fill,
+progress.installing fill {
+    background-color: var(--color-info);
+    decorator: none;
+}
+
+progress.failed fill {
+    background-color: var(--color-error);
+    decorator: none;
+    box-shadow: none;
+}
+
+progress.paused fill {
+    background-color: rgba(var(--color-text-rgb), 35%);
+    decorator: none;
+    box-shadow: none;
+}
+
+progress.retrying fill {
+    background-color: rgba(var(--color-warning-rgb), 55%);
+    decorator: none;
+}
+
+/* Indeterminate: <loader><bead/><bead/><bead/></loader>, three beads pulsing in sequence. */
+loader {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8dp;
+    height: 10dp;
+}
+
+loader bead {
+    display: block;
+    width: 8dp;
+    height: 8dp;
+    border-radius: 4dp;
+    background-color: var(--color-sun);
+    opacity: 0.3;
+    animation: 0.9s sine-in-out infinite alternate bead-pulse;
+}
+
+loader bead:nth-child(2) { animation: 0.9s sine-in-out 0.15s infinite alternate bead-pulse; }
+loader bead:nth-child(3) { animation: 0.9s sine-in-out 0.3s infinite alternate bead-pulse; }
+
+@keyframes bead-pulse {
+    from { opacity: 0.3; }
+    to { opacity: 1; }
+}
+
+/* Spinner where only a square fits: a turning leaf. */
+icon.spinner {
+    color: var(--color-accent);
+    decorator: text("&#xea35;" center center);
+    transform-origin: center;
+    animation: 1.1s linear infinite spinner-turn;
+}
+
+@keyframes spinner-turn {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
+/* ---- Scrollbars (DESIGN.md 5.15): a thin thumb, no track ---- */
+
+scrollbarvertical {
+    width: 10dp;
+    margin: 6dp 6dp 6dp 0;
+}
+
+scrollbarvertical sliderarrowdec,
+scrollbarvertical sliderarrowinc {
+    width: 0;
+    height: 0;
+}
+
+scrollbarvertical slidertrack {
+    width: 10dp;
+}
+
+scrollbarvertical sliderbar {
+    width: 6dp;
+    margin-left: 4dp;
+    min-height: 32dp;
+    background-color: rgba(var(--color-text-rgb), 30%);
+    border-radius: 3dp;
+    transition: background-color 0.16s cubic-out, width 0.16s cubic-out, margin-left 0.16s cubic-out;
+}
+
+scrollbarvertical sliderbar:hover,
+scrollbarvertical sliderbar:active {
+    width: 10dp;
+    margin-left: 0;
+    border-radius: 5dp;
+    background-color: rgba(var(--color-accent-rgb), 85%);
+}
+
+color-swatch {
+    display: block;
+    flex: 0 0 auto;
+    width: 20dp;
+    height: 20dp;
+    border-radius: 10dp;
+    box-shadow: 0 0 0 1dp rgba(255, 255, 255, 45%);
+}
+
+color-swatch.empty {
+    background-color: rgba(var(--color-text-rgb), 12%);
+    decorator: linear-gradient(135deg, rgba(238, 247, 255, 0%) 45%, rgba(140, 224, 74, 70%) 48%, rgba(140, 224, 74, 70%) 52%, rgba(238, 247, 255, 0%) 55%);
+}
+
+/* ---- Tooltip (DESIGN.md 5.13) ---- */
+
+ui-tooltip {
+    display: none;
+    position: absolute;
+    z-index: 1000;
+    max-width: 300dp;
+    padding: 8dp 12dp;
+    font-family: var(--font-family-body);
+    font-weight: 600;
+    font-size: var(--font-size-sm);
+    line-height: 1.35;
+    color: var(--color-text);
+    border-width: 1dp;
+    border-color: rgba(var(--color-border-rgb), 55%);
+    border-radius: 12dp;
+    background-color: rgba(var(--color-raised-rgb), 97%);
+    box-shadow: 0 4dp 14dp 0 rgba(5, 11, 26, 55%);
+    word-break: break-word;
+    pointer-events: none;
+    focus: none;
+    opacity: 0;
+    transition: opacity 0.12s cubic-out;
+}
+
+ui-tooltip.visible {
+    display: block;
+    opacity: 1;
+}
+
+/* ---- Button prompts (DESIGN.md 5.17) ----
+ * <button-prompts><prompt><glyph>A</glyph><label>Select</label></prompt>...</button-prompts>
+ * `glyph.key` draws a keyboard key instead of a gamepad orb. */
+button-prompts {
+    display: flex;
+    flex-flow: row;
+    align-items: center;
+    gap: 20dp;
+}
+
+prompt {
+    display: flex;
+    align-items: center;
+    gap: 6dp;
+}
+
+prompt glyph {
+    display: block;
+    min-width: 26dp;
+    height: 26dp;
+    padding: 0 7dp;
+    border-radius: 13dp;
+    font-family: var(--font-family-heading);
+    font-weight: 600;
+    font-size: var(--font-size-xs);
+    line-height: 26dp;
+    text-align: center;
+    color: var(--color-text);
+    background-color: rgba(var(--color-surface-rgb), 55%);
+    box-shadow: inset 3dp 4dp 8dp 0 rgba(255, 255, 255, 16%), inset -3dp -5dp 10dp 0 rgba(5, 11, 26, 50%), 0 0 0 2dp rgba(111, 182, 222, 55%);
+}
+
+prompt glyph.key {
+    border-radius: 7dp;
+}
+
+prompt label {
+    font-family: var(--font-family-body);
+    font-weight: 700;
+    font-size: var(--font-size-sm);
+    color: rgba(var(--color-text-rgb), 80%);
+}
+
+/* ==== Accessibility and quality classes (DESIGN.md 9, 5.16) ====
+ * ui/document.cpp keeps `reduce-motion`, `high-contrast`, `glass-off` and `glass-full` on every
+ * document's body. RmlUi has no `!important`, so these selectors repeat their class to outrank the
+ * component rules (each repeat adds one class to the specificity); keep the count above the most
+ * specific animated selector in the component sheets (three classes or pseudo-classes today). */
+
+/* Reduce motion: nothing moves; things fade in place over 0.08s. Opacity and filter keep a
+ * transition so the `transitionend` events that close windows and popovers still fire. */
+body.reduce-motion.reduce-motion.reduce-motion.reduce-motion * {
+    transition: opacity 0.08s linear-in-out, filter 0.08s linear-in-out, background-color 0.08s linear-in-out, color 0.08s linear-in-out;
+    animation: none;
+}
+
+/* Loaders carry information, so they stay, as an opacity pulse only. */
+body.reduce-motion.reduce-motion.reduce-motion.reduce-motion loader bead {
+    animation: 0.9s linear-in-out infinite alternate bead-pulse;
+}
+
+body.reduce-motion.reduce-motion.reduce-motion.reduce-motion icon.spinner {
+    animation: 1.2s linear-in-out infinite alternate bead-pulse;
+}
+
+/* High contrast: opaque surfaces, no blur or shine, bright rims, brighter secondary text. */
+body.high-contrast {
+    --text-secondary: rgba(238, 247, 255, 90%);
+    --text-value: rgba(238, 247, 255, 95%);
+    --text-tertiary: rgba(238, 247, 255, 80%);
+    --text-disabled: rgba(238, 247, 255, 55%);
+    --surface-window: rgb(11, 23, 48);
+    --surface-popover: rgb(19, 38, 74);
+    --surface-bar: rgb(11, 23, 48);
+    --surface-toast: rgb(11, 23, 48);
+    --surface-shine: none;
+    --blur-panel: none;
+    --blur-bar: none;
+    --rim-color: rgb(238, 247, 255);
+    --button-background: rgb(6, 14, 34);
+    --shadow-control: 0 0 0 2dp rgba(238, 247, 255, 70%);
+    --shadow-row: 0 0 0 2dp rgba(238, 247, 255, 45%);
+}
+
+body.high-contrast.high-contrast.high-contrast.high-contrast .orb,
+body.high-contrast.high-contrast.high-contrast.high-contrast orb {
+    background-color: rgb(11, 23, 48);
+    backdrop-filter: none;
+}
+
+/* Glass Off: the same panels with an opaque surface and no backdrop copy (cheaper GPUs). */
+body.glass-off {
+    --surface-window: rgba(11, 23, 48, 96%);
+    --surface-popover: rgba(19, 38, 74, 98%);
+    --surface-bar: rgba(11, 23, 48, 96%);
+    --surface-toast: rgba(11, 23, 48, 96%);
+    --blur-panel: none;
+    --blur-bar: none;
+}
+
+body.glass-off.glass-off.glass-off.glass-off .orb,
+body.glass-off.glass-off.glass-off.glass-off orb {
+    background-color: rgba(11, 23, 48, 92%);
+    backdrop-filter: none;
+}
+
+/* Glass Full: orbs that opt in refract the scene behind them. */
+body.glass-full.glass-full.glass-full.glass-full .orb.refract,
+body.glass-full.glass-full.glass-full.glass-full orb.refract {
+    backdrop-filter: glass(14dp 18dp 0.35 rgba(11, 23, 48, 40%) 1.1 convex 0 auto);
+}

@@ -1,0 +1,809 @@
+#include "ebi/Screen/TMemoryCard.h"
+#include "ebi/Screen/TResourceObserver.h"
+#include "og/newScreen/ogUtil.h"
+#include "ebi/E2DGraph.h"
+#include "System.h"
+#include "PSSystem/PSSystemIF.h"
+#include "Controller.h"
+#include "SoundID.h"
+
+namespace ebi {
+namespace Screen {
+
+static const char className[] = "ebiScreenMemoryCard";
+
+/**
+ * @note Address: N/A
+ * @note Size: 0x4C
+ */
+TResourceObserver::TResourceObserver(TMemoryCard* owner)
+{
+	mOwner = owner;
+}
+
+/**
+ * @note Address: 0x803C2244
+ * @note Size: 0x6C
+ */
+TResourceObserver::~TResourceObserver()
+{
+	mOwner->destroyResource();
+}
+
+/**
+ * @note Address: 0x803C22B0
+ * @note Size: 0xD8
+ */
+void TMemoryCard::loadResource(JKRHeap* heap)
+{
+	TResourceObserver* resource = new (heap, 0) TResourceObserver(this);
+	sys->heapStatusStart("TScreenMemoryCard::loadResource", nullptr);
+
+	char buf[264];
+	og::newScreen::makeLanguageResName(buf, "memory_card.szs");
+
+	JKRArchive* arc = JKRMountArchive(buf, JKRArchive::EMM_Mem, heap, JKRArchive::EMD_Head);
+
+	P2ASSERTLINE(54, arc);
+
+	sys->heapStatusEnd("TScreenMemoryCard::loadResource");
+	setArchive(arc);
+}
+
+/**
+ * @note Address: 0x803C2388
+ * @note Size: 0x39C
+ */
+void TMemoryCard::setArchive(JKRArchive* arc)
+{
+	sys->heapStatusStart("TScreenMemoryCard::setArchive", nullptr);
+
+	mScreenMain = new P2DScreen::Mgr_tuning;
+	mScreenMain->set("memory_card.blo", 0x1100000, arc);
+
+	mPaneMsg1 = static_cast<J2DTextBox*>(E2DScreen_searchAssert(mScreenMain, MC64('yes_00', 0x7965735F3030)));
+	mPaneMsg2 = static_cast<J2DTextBox*>(E2DScreen_searchAssert(mScreenMain, MC64('no_00', 0x6E6F5F3030)));
+	mPaneMsg3 = static_cast<J2DTextBox*>(E2DScreen_searchAssert(mScreenMain, MC64('pattern1', 0x7061747465726E31)));
+	mPaneMsg4 = static_cast<J2DTextBox*>(E2DScreen_searchAssert(mScreenMain, MC64('pattern2', 0x7061747465726E32)));
+
+	mPane_il00       = E2DScreen_searchAssert(mScreenMain, MC64('il_00', 0x696C5F3030));
+	mPane_ir00       = E2DScreen_searchAssert(mScreenMain, MC64('ir_00', 0x69725F3030));
+	mPane_il01       = E2DScreen_searchAssert(mScreenMain, MC64('il_01', 0x696C5F3031));
+	mPane_ir01       = E2DScreen_searchAssert(mScreenMain, MC64('ir_01', 0x69725F3031));
+	J2DTextBox* temp = static_cast<J2DTextBox*>(E2DScreen_searchAssert(mScreenMain, MC64('s_color', 0x735F636F6C6F72)));
+
+	mPaneMsg1->setMsgID('1');
+	mPaneMsg2->setMsgID('1');
+	mPaneMsg3->setMsgID('1');
+	mPaneMsg4->setMsgID('1');
+
+	E2DPane_setTreeCallBackMessage(mScreenMain, mScreenMain);
+	E2DPane_setTreeShow(mScreenMain);
+	temp->hide();
+
+	mPane_il00->setAlpha(0);
+	mPane_ir00->setAlpha(0);
+	mPane_il01->setAlpha(0);
+	mPane_ir01->setAlpha(0);
+
+	mScreenMain->addCallBackPane(mScreenMain, &mAnim1);
+	mScreenMain->addCallBackPane(mPaneMsg3, &mAnim2);
+	mScreenMain->addCallBackPane(mPaneMsg4, &mAnim3);
+	mScreenMain->addCallBackPane(mPaneMsg1, &mAnim4);
+	mScreenMain->addCallBackPane(mPaneMsg2, &mAnim5);
+	mScreenMain->addCallBackPane(mScreenMain, &mCalcAnim);
+
+	mAnim1.loadAnm("memory_card.bck", arc, 0, 99999);
+	mAnim2.loadAnm("memory_card_pattern1.bck", arc, 0, 99999);
+	mAnim3.loadAnm("memory_card_pattern2.bck", arc, 0, 99999);
+	mAnim4.loadAnm("memory_card_yes.bck", arc, 0, 99999);
+	mAnim5.loadAnm("memory_card_no.bck", arc, 0, 99999);
+	mAnim1.play(sys->mDeltaTime * 60.0f, J3DAA_UNKNOWN_2, true);
+
+	mBlinkFont1.set(mPaneMsg2, temp);
+	mBlinkFont2.set(mPaneMsg2, temp);
+
+	mScreenMain->addCallBackPane(mPaneMsg1, &mBlinkFont1);
+	mScreenMain->addCallBackPane(mPaneMsg2, &mBlinkFont2);
+
+	mCursor1.setPanes(mPane_il00, mPane_il01);
+	mCursor2.setPanes(mPane_ir00, mPane_ir01);
+
+	sys->heapStatusEnd("TScreenMemoryCard::setArchive");
+}
+
+/**
+ * @note Address: 0x803C28E0
+ * @note Size: 0x18
+ */
+void TMemoryCard::destroyResource()
+{
+	mPaneMsg1 = nullptr;
+	mPaneMsg2 = nullptr;
+	mPaneMsg3 = nullptr;
+	mPaneMsg4 = nullptr;
+}
+
+/**
+ * @note Address: 0x803C28F8
+ * @note Size: 0x1208
+ */
+void TMemoryCard::open(s32 type)
+{
+	P2ASSERTBOUNDSLINE(162, 0, type, 44);
+	mIsPlaySavingSE = false;
+	mMsgAlpha.setValue((u32)30);
+
+	switch (type) {
+	case OPEN_None:
+		startState(MEMCARD_Finish);
+		mMsgAlpha.setValue((u32)0);
+		break;
+
+	case OPEN_NoCard:
+		PSSystem::spSysIF->playSystemSe(PSSE_SY_MEMORYCARD_ERROR, 0);
+		mPaneMsg3->setMsgID(
+		    MC64('5450_00', 0x353435305F3030)); // "No Memory Card found in Slot A. Please check to make sure you have inserted a Memory Card properly."
+		mPaneMsg4->setMsgID(
+		    MC64('5450_00', 0x353435305F3030)); // "No Memory Card found in Slot A. Please check to make sure you have inserted a Memory Card properly."
+		mPaneMsg1->setMsgID(
+		    MC64('5450_00', 0x353435305F3030)); // "No Memory Card found in Slot A. Please check to make sure you have inserted a Memory Card properly."
+		mPaneMsg2->setMsgID(
+		    MC64('5450_00', 0x353435305F3030)); // "No Memory Card found in Slot A. Please check to make sure you have inserted a Memory Card properly."
+		startState(MEMCARD_Message);
+		break;
+
+	case OPEN_CardDamaged:
+		PSSystem::spSysIF->playSystemSe(PSSE_SY_MEMORYCARD_ERROR, 0);
+		mPaneMsg3->setMsgID(MC64('5451_00', 0x353435315F3030)); // "The Memory Card in Slot A is damaged and cannot be used."
+		mPaneMsg4->setMsgID(MC64('5451_00', 0x353435315F3030)); // "The Memory Card in Slot A is damaged and cannot be used."
+		mPaneMsg1->setMsgID(MC64('5451_00', 0x353435315F3030)); // "The Memory Card in Slot A is damaged and cannot be used."
+		mPaneMsg2->setMsgID(MC64('5451_00', 0x353435315F3030)); // "The Memory Card in Slot A is damaged and cannot be used."
+		startState(MEMCARD_Message);
+		break;
+
+	case OPEN_WrongDevice:
+		PSSystem::spSysIF->playSystemSe(PSSE_SY_MEMORYCARD_ERROR, 0);
+		mPaneMsg3->setMsgID(MC64('5452_00', 0x353435325F3030)); // "The device inserted in Slot A is not a Memory Card."
+		mPaneMsg4->setMsgID(MC64('5452_00', 0x353435325F3030)); // "The device inserted in Slot A is not a Memory Card."
+		mPaneMsg1->setMsgID(MC64('5452_00', 0x353435325F3030)); // "The device inserted in Slot A is not a Memory Card."
+		mPaneMsg2->setMsgID(MC64('5452_00', 0x353435325F3030)); // "The device inserted in Slot A is not a Memory Card."
+		startState(MEMCARD_Message);
+		break;
+
+	case OPEN_CantUseCard:
+		PSSystem::spSysIF->playSystemSe(PSSE_SY_MEMORYCARD_ERROR, 0);
+		mPaneMsg3->setMsgID(MC64('5453_00', 0x353435335F3030)); // "The Memory Card in Slot A cannot be used."
+		mPaneMsg4->setMsgID(MC64('5453_00', 0x353435335F3030)); // "The Memory Card in Slot A cannot be used."
+		mPaneMsg1->setMsgID(MC64('5453_00', 0x353435335F3030)); // "The Memory Card in Slot A cannot be used."
+		mPaneMsg2->setMsgID(MC64('5453_00', 0x353435335F3030)); // "The Memory Card in Slot A cannot be used."
+		startState(MEMCARD_Message);
+		break;
+
+	case OPEN_DoFormat:
+		PSSystem::spSysIF->playSystemSe(PSSE_SY_MEMORYCARD_ERROR, 0);
+		mPaneMsg3->setMsgID(MC64('0000_00', 0x303030305F3030));
+		mPaneMsg4->setMsgID(MC64('5454_00', 0x353435345F3030)); // "The Memory Card in Slot A is corrupted and must be formatted. Format the Memory Card now?"
+		mPaneMsg1->setMsgID(MC64('5455_00', 0x353435355F3030)); // "Yes"
+		mPaneMsg2->setMsgID(MC64('5456_00', 0x353435365F3030)); // "No"
+		setSelect_(false);
+		startState(MEMCARD_Selection);
+		break;
+
+	case OPEN_NotEnoughSpace:
+		PSSystem::spSysIF->playSystemSe(PSSE_SY_MEMORYCARD_ERROR, 0);
+		mPaneMsg3->setMsgID(
+		    MC64('5457_00', 0x353435375F3030)); // "The Memory Card in Slot A does not have enough free space. Pikmin 2 requires 1 File and 27 Blocks to save."
+		mPaneMsg4->setMsgID(
+		    MC64('5457_00', 0x353435375F3030)); // "The Memory Card in Slot A does not have enough free space. Pikmin 2 requires 1 File and 27 Blocks to save."
+		mPaneMsg1->setMsgID(
+		    MC64('5457_00', 0x353435375F3030)); // "The Memory Card in Slot A does not have enough free space. Pikmin 2 requires 1 File and 27 Blocks to save."
+		mPaneMsg2->setMsgID(
+		    MC64('5457_00', 0x353435375F3030)); // "The Memory Card in Slot A does not have enough free space. Pikmin 2 requires 1 File and 27 Blocks to save."
+		startState(MEMCARD_Message);
+		break;
+
+	case OPEN_GoToIPL:
+		mPaneMsg3->setMsgID(MC64('5458_00', 0x353435385F3030)); // "Please manage the Memory Card on the Memory Card Screen."
+		mPaneMsg4->setMsgID(MC64('5458_00', 0x353435385F3030)); // "Please manage the Memory Card on the Memory Card Screen."
+		mPaneMsg1->setMsgID(MC64('5458_00', 0x353435385F3030)); // "Please manage the Memory Card on the Memory Card Screen."
+		mPaneMsg2->setMsgID(MC64('5458_00', 0x353435385F3030)); // "Please manage the Memory Card on the Memory Card Screen."
+		startState((enumState)2);
+		break;
+
+	case OPEN_CantFormat:
+		PSSystem::spSysIF->playSystemSe(PSSE_SY_MEMORYCARD_ERROR, 0);
+		mPaneMsg3->setMsgID(MC64('5459_00', 0x353435395F3030)); // "The Memory Card could not be formatted."
+		mPaneMsg4->setMsgID(MC64('5459_00', 0x353435395F3030)); // "The Memory Card could not be formatted."
+		mPaneMsg1->setMsgID(MC64('5459_00', 0x353435395F3030)); // "The Memory Card could not be formatted."
+		mPaneMsg2->setMsgID(MC64('5459_00', 0x353435395F3030)); // "The Memory Card could not be formatted."
+		startState(MEMCARD_Message);
+		break;
+
+	case OPEN_CardFormatted:
+		PSSystem::spSysIF->playSystemSe(PSSE_SY_MEMORYCARD_OK, 0);
+		mPaneMsg3->setMsgID(MC64('5460_00', 0x353436305F3030)); // "The Memory Card has been formatted."
+		mPaneMsg4->setMsgID(MC64('5460_00', 0x353436305F3030)); // "The Memory Card has been formatted."
+		mPaneMsg1->setMsgID(MC64('5460_00', 0x353436305F3030)); // "The Memory Card has been formatted."
+		mPaneMsg2->setMsgID(MC64('5460_00', 0x353436305F3030)); // "The Memory Card has been formatted."
+		startState(MEMCARD_Message);
+		break;
+
+	case OPEN_Formatting:
+		mIsPlaySavingSE = true;
+		mPaneMsg3->setMsgID(MC64('5461_00', 0x353436315F3030)); // "Formatting the Memory Card in Slot A. Do not touch the Memory Card or the POWER Button."
+		mPaneMsg4->setMsgID(MC64('5461_00', 0x353436315F3030)); // "Formatting the Memory Card in Slot A. Do not touch the Memory Card or the POWER Button."
+		mPaneMsg1->setMsgID(MC64('5461_00', 0x353436315F3030)); // "Formatting the Memory Card in Slot A. Do not touch the Memory Card or the POWER Button."
+		mPaneMsg2->setMsgID(MC64('5461_00', 0x353436315F3030)); // "Formatting the Memory Card in Slot A. Do not touch the Memory Card or the POWER Button."
+		startState(MEMCARD_Message);
+		break;
+
+	case OPEN_DoFormatConfirm:
+		mPaneMsg3->setMsgID(MC64('0000_00', 0x303030305F3030));
+		mPaneMsg4->setMsgID(MC64('5462_00', 0x353436325F3030)); // "Formatting the Memory Card will erase all saved data on the Memory Card. Is this OK?"
+		mPaneMsg1->setMsgID(MC64('5463_00', 0x353436335F3030)); // "Yes"
+		mPaneMsg2->setMsgID(MC64('5464_00', 0x353436345F3030)); // "No"
+		setSelect_(false);
+		startState(MEMCARD_Selection);
+		break;
+
+	case OPEN_CantUseCard2:
+		PSSystem::spSysIF->playSystemSe(PSSE_SY_MEMORYCARD_ERROR, 0);
+		mPaneMsg3->setMsgID(MC64('5465_00', 0x353436355F3030)); // "The Memory Card in Slot A cannot be used. "
+		mPaneMsg4->setMsgID(MC64('5465_00', 0x353436355F3030)); // "The Memory Card in Slot A cannot be used. "
+		mPaneMsg1->setMsgID(MC64('5465_00', 0x353436355F3030)); // "The Memory Card in Slot A cannot be used. "
+		mPaneMsg2->setMsgID(MC64('5465_00', 0x353436355F3030)); // "The Memory Card in Slot A cannot be used. "
+		startState(MEMCARD_Message);
+		break;
+
+	case OPEN_DoGotoIPL:
+		mPaneMsg3->setMsgID(MC64('0000_00', 0x303030305F3030));
+		mPaneMsg4->setMsgID(MC64('5466_00', 0x353436365F3030)); // "Access the Memory Card Screen now?"
+		mPaneMsg1->setMsgID(MC64('5467_00', 0x353436375F3030)); // "Yes"
+		mPaneMsg2->setMsgID(MC64('5468_00', 0x353436385F3030)); // "No"
+		setSelect_(false);
+		startState(MEMCARD_Selection);
+		break;
+
+	case OPEN_DoPlayNoSaving:
+		mPaneMsg3->setMsgID(MC64('0000_00', 0x303030305F3030));
+		mPaneMsg4->setMsgID(MC64('5469_00', 0x353436395F3030)); // "The game cannot be saved. Continue without saving?"
+		mPaneMsg1->setMsgID(MC64('5470_00', 0x353437305F3030)); // "Yes"
+		mPaneMsg2->setMsgID(MC64('5471_00', 0x353437315F3030)); // "No"
+		setSelect_(false);
+		startState(MEMCARD_Selection);
+		break;
+
+	case OPEN_DoCreateFile:
+		mPaneMsg3->setMsgID(MC64('0000_00', 0x303030305F3030));
+		mPaneMsg4->setMsgID(MC64('5472_00', 0x353437325F3030)); // "Create a Pikmin 2 game file on the Memory Card in Slot A?"
+		mPaneMsg1->setMsgID(MC64('5473_00', 0x353437335F3030)); // "Yes"
+		mPaneMsg2->setMsgID(MC64('5474_00', 0x353437345F3030)); // "No"
+		setSelect_(false);
+		startState(MEMCARD_Selection);
+		break;
+
+	case OPEN_NoFileFound:
+		PSSystem::spSysIF->playSystemSe(PSSE_SY_MEMORYCARD_ERROR, 0);
+		mPaneMsg3->setMsgID(MC64('5475_00', 0x353437355F3030)); // "There is no Pikmin 2 game file on the Memory Card in Slot A."
+		mPaneMsg4->setMsgID(MC64('5475_00', 0x353437355F3030)); // "There is no Pikmin 2 game file on the Memory Card in Slot A."
+		mPaneMsg1->setMsgID(MC64('5475_00', 0x353437355F3030)); // "There is no Pikmin 2 game file on the Memory Card in Slot A."
+		mPaneMsg2->setMsgID(MC64('5475_00', 0x353437355F3030)); // "There is no Pikmin 2 game file on the Memory Card in Slot A."
+		startState(MEMCARD_Message);
+		break;
+
+	case OPEN_CantCreateFile:
+		PSSystem::spSysIF->playSystemSe(PSSE_SY_MEMORYCARD_ERROR, 0);
+		mPaneMsg3->setMsgID(MC64('5476_00', 0x353437365F3030)); // "A game file could not be created."
+		mPaneMsg4->setMsgID(MC64('5476_00', 0x353437365F3030)); // "A game file could not be created."
+		mPaneMsg1->setMsgID(MC64('5476_00', 0x353437365F3030)); // "A game file could not be created."
+		mPaneMsg2->setMsgID(MC64('5476_00', 0x353437365F3030)); // "A game file could not be created."
+		startState(MEMCARD_Message);
+		break;
+
+	case OPEN_CreatingFile:
+		mIsPlaySavingSE = true;
+		mPaneMsg3->setMsgID(MC64('5477_00', 0x353437375F3030)); // "Creating a game file... Do not touch the Memory Card in Slot A or the POWER Button."
+		mPaneMsg4->setMsgID(MC64('5477_00', 0x353437375F3030)); // "Creating a game file... Do not touch the Memory Card in Slot A or the POWER Button."
+		mPaneMsg1->setMsgID(MC64('5477_00', 0x353437375F3030)); // "Creating a game file... Do not touch the Memory Card in Slot A or the POWER Button."
+		mPaneMsg2->setMsgID(MC64('5477_00', 0x353437375F3030)); // "Creating a game file... Do not touch the Memory Card in Slot A or the POWER Button."
+		startState(MEMCARD_Message);
+		break;
+
+	case OPEN_FileCreated:
+		PSSystem::spSysIF->playSystemSe(PSSE_SY_MEMORYCARD_OK, 0);
+		mPaneMsg3->setMsgID(MC64('5478_00', 0x353437385F3030)); // "A file has been created."
+		mPaneMsg4->setMsgID(MC64('5478_00', 0x353437385F3030)); // "A file has been created."
+		mPaneMsg1->setMsgID(MC64('5478_00', 0x353437385F3030)); // "A file has been created."
+		mPaneMsg2->setMsgID(MC64('5478_00', 0x353437385F3030)); // "A file has been created."
+		startState(MEMCARD_Message);
+		break;
+
+	case OPEN_CantSaveNoCard:
+		PSSystem::spSysIF->playSystemSe(PSSE_SY_MEMORYCARD_ERROR, 0);
+		mPaneMsg3->setMsgID(
+		    MC64('5551_00', 0x353535315F3030)); // "The game cannot be saved. There is no Memory Card in Slot A. Please insert a Memory Card into Slot A."
+		mPaneMsg4->setMsgID(
+		    MC64('5551_00', 0x353535315F3030)); // "The game cannot be saved. There is no Memory Card in Slot A. Please insert a Memory Card into Slot A."
+		mPaneMsg1->setMsgID(
+		    MC64('5551_00', 0x353535315F3030)); // "The game cannot be saved. There is no Memory Card in Slot A. Please insert a Memory Card into Slot A."
+		mPaneMsg2->setMsgID(
+		    MC64('5551_00', 0x353535315F3030)); // "The game cannot be saved. There is no Memory Card in Slot A. Please insert a Memory Card into Slot A."
+		startState(MEMCARD_Message);
+		break;
+
+	case OPEN_CantSaveCardDamaged:
+		PSSystem::spSysIF->playSystemSe(PSSE_SY_MEMORYCARD_ERROR, 0);
+		mPaneMsg3->setMsgID(MC64('5552_00', 0x353535325F3030)); // "The game cannot be saved. The Memory Card in Slot A is damaged and cannot be used."
+		mPaneMsg4->setMsgID(MC64('5552_00', 0x353535325F3030)); // "The game cannot be saved. The Memory Card in Slot A is damaged and cannot be used."
+		mPaneMsg1->setMsgID(MC64('5552_00', 0x353535325F3030)); // "The game cannot be saved. The Memory Card in Slot A is damaged and cannot be used."
+		mPaneMsg2->setMsgID(MC64('5552_00', 0x353535325F3030)); // "The game cannot be saved. The Memory Card in Slot A is damaged and cannot be used."
+		startState(MEMCARD_Message);
+		break;
+
+	case OPEN_CantSaveWrongDevice:
+		PSSystem::spSysIF->playSystemSe(PSSE_SY_MEMORYCARD_ERROR, 0);
+		mPaneMsg3->setMsgID(MC64('5553_00', 0x353535335F3030)); // "The game cannot be saved. An incorrect device is inserted in Slot A. Remove the device and
+		                                // insert a Memory Card."
+		mPaneMsg4->setMsgID(MC64('5553_00', 0x353535335F3030)); // "The game cannot be saved. An incorrect device is inserted in Slot A. Remove the device and
+		                                // insert a Memory Card."
+		mPaneMsg1->setMsgID(MC64('5553_00', 0x353535335F3030)); // "The game cannot be saved. An incorrect device is inserted in Slot A. Remove the device and
+		                                // insert a Memory Card."
+		mPaneMsg2->setMsgID(MC64('5553_00', 0x353535335F3030)); // "The game cannot be saved. An incorrect device is inserted in Slot A. Remove the device and
+		                                // insert a Memory Card."
+		startState(MEMCARD_Message);
+		break;
+
+	case OPEN_CantSaveCantUseCard:
+		PSSystem::spSysIF->playSystemSe(PSSE_SY_MEMORYCARD_ERROR, 0);
+		mPaneMsg3->setMsgID(MC64('5554_00', 0x353535345F3030)); // "The game cannot be saved. The Memory Card in Slot A cannot be used."
+		mPaneMsg4->setMsgID(MC64('5554_00', 0x353535345F3030)); // "The game cannot be saved. The Memory Card in Slot A cannot be used."
+		mPaneMsg1->setMsgID(MC64('5554_00', 0x353535345F3030)); // "The game cannot be saved. The Memory Card in Slot A cannot be used."
+		mPaneMsg2->setMsgID(MC64('5554_00', 0x353535345F3030)); // "The game cannot be saved. The Memory Card in Slot A cannot be used."
+		startState(MEMCARD_Message);
+		break;
+
+	case OPEN_CantSaveDoFormat:
+		PSSystem::spSysIF->playSystemSe(PSSE_SY_MEMORYCARD_ERROR, 0);
+		mPaneMsg3->setMsgID(MC64('0000_00', 0x303030305F3030));
+		mPaneMsg4->setMsgID(MC64('5592_00', 0x353539325F3030)); // "The game cannot be saved. The Memory Card in Slot A is corrupted and must be formatted. Format
+		                                // the Memory Card now?"
+		mPaneMsg1->setMsgID(MC64('5593_00', 0x353539335F3030)); // "Yes"
+		mPaneMsg2->setMsgID(MC64('5594_00', 0x353539345F3030)); // "No"
+		setSelect_(false);
+		startState(MEMCARD_Selection);
+		break;
+
+	case OPEN_CantSaveNoSpace:
+		PSSystem::spSysIF->playSystemSe(PSSE_SY_MEMORYCARD_ERROR, 0);
+		mPaneMsg3->setMsgID(MC64('5555_00', 0x353535355F3030)); // "The game cannot be saved. There is not enough available space on the Memory Card in Slot A.
+		                                // Pikmin 2 requires 1 File and 27 Blocks to save."
+		mPaneMsg4->setMsgID(MC64('5555_00', 0x353535355F3030)); // "The game cannot be saved. There is not enough available space on the Memory Card in Slot A.
+		                                // Pikmin 2 requires 1 File and 27 Blocks to save."
+		mPaneMsg1->setMsgID(MC64('5555_00', 0x353535355F3030)); // "The game cannot be saved. There is not enough available space on the Memory Card in Slot A.
+		                                // Pikmin 2 requires 1 File and 27 Blocks to save."
+		mPaneMsg2->setMsgID(MC64('5555_00', 0x353535355F3030)); // "The game cannot be saved. There is not enough available space on the Memory Card in Slot A.
+		                                // Pikmin 2 requires 1 File and 27 Blocks to save."
+		startState(MEMCARD_Message);
+		break;
+
+	case OPEN_InsertOriginalCard:
+		mPaneMsg3->setMsgID(MC64('5556_00', 0x353535365F3030)); // "Please manage Memory Card data on the Memory Card Screen, or insert the original Memory Card."
+		mPaneMsg4->setMsgID(MC64('5556_00', 0x353535365F3030)); // "Please manage Memory Card data on the Memory Card Screen, or insert the original Memory Card."
+		mPaneMsg1->setMsgID(MC64('5556_00', 0x353535365F3030)); // "Please manage Memory Card data on the Memory Card Screen, or insert the original Memory Card."
+		mPaneMsg2->setMsgID(MC64('5556_00', 0x353535365F3030)); // "Please manage Memory Card data on the Memory Card Screen, or insert the original Memory Card."
+		startState(MEMCARD_Message);
+		break;
+
+	case OPEN_CantFormat2:
+		PSSystem::spSysIF->playSystemSe(PSSE_SY_MEMORYCARD_ERROR, 0);
+		mPaneMsg3->setMsgID(MC64('5557_00', 0x353535375F3030)); // "The Memory Card could not be formatted."
+		mPaneMsg4->setMsgID(MC64('5557_00', 0x353535375F3030)); // "The Memory Card could not be formatted."
+		mPaneMsg1->setMsgID(MC64('5557_00', 0x353535375F3030)); // "The Memory Card could not be formatted."
+		mPaneMsg2->setMsgID(MC64('5557_00', 0x353535375F3030)); // "The Memory Card could not be formatted."
+		startState(MEMCARD_Message);
+		break;
+
+	case OPEN_FormatSuccess:
+		PSSystem::spSysIF->playSystemSe(PSSE_SY_MEMORYCARD_OK, 0);
+		mPaneMsg3->setMsgID(MC64('5558_00', 0x353535385F3030)); // "The Memory Card has been formatted."
+		mPaneMsg4->setMsgID(MC64('5558_00', 0x353535385F3030)); // "The Memory Card has been formatted."
+		mPaneMsg1->setMsgID(MC64('5558_00', 0x353535385F3030)); // "The Memory Card has been formatted."
+		mPaneMsg2->setMsgID(MC64('5558_00', 0x353535385F3030)); // "The Memory Card has been formatted."
+		startState(MEMCARD_Message);
+		break;
+
+	case OPEN_Formatting2:
+		mIsPlaySavingSE = true;
+		mPaneMsg3->setMsgID(MC64('5559_00', 0x353535395F3030)); // "The Memory Card is being formatted. Do not touch the Memory Card or the POWER Button."
+		mPaneMsg4->setMsgID(MC64('5559_00', 0x353535395F3030)); // "The Memory Card is being formatted. Do not touch the Memory Card or the POWER Button."
+		mPaneMsg1->setMsgID(MC64('5559_00', 0x353535395F3030)); // "The Memory Card is being formatted. Do not touch the Memory Card or the POWER Button."
+		mPaneMsg2->setMsgID(MC64('5559_00', 0x353535395F3030)); // "The Memory Card is being formatted. Do not touch the Memory Card or the POWER Button."
+		startState(MEMCARD_Message);
+		break;
+
+	case OPEN_DoFormat2:
+		mPaneMsg3->setMsgID(MC64('0000_00', 0x303030305F3030));
+		mPaneMsg4->setMsgID(MC64('5560_00', 0x353536305F3030)); // "Formatting the Memory Card will erase all saved data. Is this OK?"
+		mPaneMsg1->setMsgID(MC64('5561_00', 0x353536315F3030)); // "Yes"
+		mPaneMsg2->setMsgID(MC64('5562_00', 0x353536325F3030)); // "No"
+		setSelect_(false);
+		startState(MEMCARD_Selection);
+		break;
+
+	case OPEN_CantSaveCantUseCard2:
+		PSSystem::spSysIF->playSystemSe(PSSE_SY_MEMORYCARD_ERROR, 0);
+		mPaneMsg3->setMsgID(MC64('5563_00', 0x353536335F3030)); // "The game cannot be saved. The Memory Card in Slot A cannot be used."
+		mPaneMsg4->setMsgID(MC64('5563_00', 0x353536335F3030)); // "The game cannot be saved. The Memory Card in Slot A cannot be used."
+		mPaneMsg1->setMsgID(MC64('5563_00', 0x353536335F3030)); // "The game cannot be saved. The Memory Card in Slot A cannot be used."
+		mPaneMsg2->setMsgID(MC64('5563_00', 0x353536335F3030)); // "The game cannot be saved. The Memory Card in Slot A cannot be used."
+		startState(MEMCARD_Message);
+		break;
+
+	case OPEN_CantSaveGotoIPL:
+		mPaneMsg3->setMsgID(MC64('0000_00', 0x303030305F3030));
+		mPaneMsg4->setMsgID(
+		    MC64('5564_00', 0x353536345F3030)); // "Data cannot be saved, so current progress will be lost. Continue to the Memory Card Screen anyway?"
+		mPaneMsg1->setMsgID(MC64('5565_00', 0x353536355F3030)); // "Yes"
+		mPaneMsg2->setMsgID(MC64('5566_00', 0x353536365F3030)); // "No"
+		setSelect_(false);
+		startState(MEMCARD_Selection);
+		break;
+
+	case OPEN_DoGotoIPL2:
+		mPaneMsg3->setMsgID(MC64('0000_00', 0x303030305F3030));
+		mPaneMsg4->setMsgID(MC64('5567_00', 0x353536375F3030)); // "Access the Memory Card Screen now?"
+		mPaneMsg1->setMsgID(MC64('5568_00', 0x353536385F3030)); // "Yes"
+		mPaneMsg2->setMsgID(MC64('5569_00', 0x353536395F3030)); // "No"
+		setSelect_(false);
+		startState(MEMCARD_Selection);
+		break;
+
+	case OPEN_DoCreateFile2:
+		mPaneMsg3->setMsgID(MC64('0000_00', 0x303030305F3030));
+		mPaneMsg4->setMsgID(MC64('5570_00', 0x353537305F3030)); // "Create a Pikmin 2 game file on the Memory Card in Slot A?"
+		mPaneMsg1->setMsgID(MC64('5571_00', 0x353537315F3030)); // "Yes"
+		mPaneMsg2->setMsgID(MC64('5572_00', 0x353537325F3030)); // "No"
+		setSelect_(false);
+		startState(MEMCARD_Selection);
+		break;
+
+	case OPEN_CantSaveNoFile:
+		PSSystem::spSysIF->playSystemSe(PSSE_SY_MEMORYCARD_ERROR, 0);
+		mPaneMsg3->setMsgID(MC64('5573_00', 0x353537335F3030)); // "The game cannot be saved. The Memory Card in Slot A does not have a Pikmin 2 game file."
+		mPaneMsg4->setMsgID(MC64('5573_00', 0x353537335F3030)); // "The game cannot be saved. The Memory Card in Slot A does not have a Pikmin 2 game file."
+		mPaneMsg1->setMsgID(MC64('5573_00', 0x353537335F3030)); // "The game cannot be saved. The Memory Card in Slot A does not have a Pikmin 2 game file."
+		mPaneMsg2->setMsgID(MC64('5573_00', 0x353537335F3030)); // "The game cannot be saved. The Memory Card in Slot A does not have a Pikmin 2 game file."
+		startState(MEMCARD_Message);
+		break;
+
+	case OPEN_CreatingFile2:
+		mIsPlaySavingSE = true;
+		mPaneMsg3->setMsgID(MC64('5574_00', 0x353537345F3030)); // "Creating a game file... Do not touch the Memory Card in Slot A or the POWER Button."
+		mPaneMsg4->setMsgID(MC64('5574_00', 0x353537345F3030)); // "Creating a game file... Do not touch the Memory Card in Slot A or the POWER Button."
+		mPaneMsg1->setMsgID(MC64('5574_00', 0x353537345F3030)); // "Creating a game file... Do not touch the Memory Card in Slot A or the POWER Button."
+		mPaneMsg2->setMsgID(MC64('5574_00', 0x353537345F3030)); // "Creating a game file... Do not touch the Memory Card in Slot A or the POWER Button."
+		startState(MEMCARD_Message);
+		break;
+
+	case OPEN_CantCreateFile2:
+		PSSystem::spSysIF->playSystemSe(PSSE_SY_MEMORYCARD_ERROR, 0);
+		mPaneMsg3->setMsgID(MC64('5575_00', 0x353537355F3030)); // "A game file could not be created."
+		mPaneMsg4->setMsgID(MC64('5575_00', 0x353537355F3030)); // "A game file could not be created."
+		mPaneMsg1->setMsgID(MC64('5575_00', 0x353537355F3030)); // "A game file could not be created."
+		mPaneMsg2->setMsgID(MC64('5575_00', 0x353537355F3030)); // "A game file could not be created."
+		startState(MEMCARD_Message);
+		break;
+
+	case OPEN_FileCreated2:
+		PSSystem::spSysIF->playSystemSe(PSSE_SY_MEMORYCARD_OK, 0);
+		mPaneMsg3->setMsgID(MC64('5576_00', 0x353537365F3030)); // "A game file has been created."
+		mPaneMsg4->setMsgID(MC64('5576_00', 0x353537365F3030)); // "A game file has been created."
+		mPaneMsg1->setMsgID(MC64('5576_00', 0x353537365F3030)); // "A game file has been created."
+		mPaneMsg2->setMsgID(MC64('5576_00', 0x353537365F3030)); // "A game file has been created."
+		startState(MEMCARD_Message);
+		break;
+
+	case OPEN_CantSaveInsertOriginalCard:
+		PSSystem::spSysIF->playSystemSe(PSSE_SY_MEMORYCARD_ERROR, 0);
+		mPaneMsg3->setMsgID(MC64('5577_00', 0x353537375F3030)); // "The game cannot be saved. Please insert the original Memory Card into Slot A."
+		mPaneMsg4->setMsgID(MC64('5577_00', 0x353537375F3030)); // "The game cannot be saved. Please insert the original Memory Card into Slot A."
+		mPaneMsg1->setMsgID(MC64('5577_00', 0x353537375F3030)); // "The game cannot be saved. Please insert the original Memory Card into Slot A."
+		mPaneMsg2->setMsgID(MC64('5577_00', 0x353537375F3030)); // "The game cannot be saved. Please insert the original Memory Card into Slot A."
+		startState(MEMCARD_Message);
+		break;
+
+	case OPEN_CardCorruptedDoOverwrite:
+		PSSystem::spSysIF->playSystemSe(PSSE_SY_MEMORYCARD_ERROR, 0);
+		mPaneMsg3->setMsgID(MC64('0000_00', 0x303030305F3030));
+		mPaneMsg4->setMsgID(
+		    MC64('5578_00', 0x353537385F3030)); // "The data in the file on the Memory Card in Slot A is corrupted. Is it OK to overwrite this file?"
+		mPaneMsg1->setMsgID(MC64('5579_00', 0x353537395F3030)); // "Yes"
+		mPaneMsg2->setMsgID(MC64('5580_00', 0x353538305F3030)); // "No"
+		setSelect_(false);
+		startState(MEMCARD_Selection);
+		break;
+
+	case OPEN_Saving:
+		mIsPlaySavingSE = true;
+		mPaneMsg3->setMsgID(MC64('5581_00', 0x353538315F3030)); // "Saving... Do not touch the Memory Card in Slot A or the POWER Button."
+		mPaneMsg4->setMsgID(MC64('5581_00', 0x353538315F3030)); // "Saving... Do not touch the Memory Card in Slot A or the POWER Button."
+		mPaneMsg1->setMsgID(MC64('5581_00', 0x353538315F3030)); // "Saving... Do not touch the Memory Card in Slot A or the POWER Button."
+		mPaneMsg2->setMsgID(MC64('5581_00', 0x353538315F3030)); // "Saving... Do not touch the Memory Card in Slot A or the POWER Button."
+		startState(MEMCARD_Message);
+		break;
+
+	case OPEN_SaveSuccess:
+		PSSystem::spSysIF->playSystemSe(PSSE_SY_MEMORYCARD_OK, 0);
+		mPaneMsg3->setMsgID(MC64('0000_00', 0x303030305F3030));
+		mPaneMsg4->setMsgID(MC64('5582_00', 0x353538325F3030)); // "The game has been saved. Continue playing?"
+		mPaneMsg1->setMsgID(MC64('5583_00', 0x353538335F3030)); // "Yes"
+		mPaneMsg2->setMsgID(MC64('5584_00', 0x353538345F3030)); // "No"
+		setSelect_(false);
+		startState(MEMCARD_Selection);
+		break;
+
+	case OPEN_SaveFail:
+		PSSystem::spSysIF->playSystemSe(PSSE_SY_MEMORYCARD_ERROR, 0);
+		mPaneMsg3->setMsgID(MC64('5585_00', 0x353538355F3030)); // "The game could not be saved."
+		mPaneMsg4->setMsgID(MC64('5585_00', 0x353538355F3030)); // "The game could not be saved."
+		mPaneMsg1->setMsgID(MC64('5585_00', 0x353538355F3030)); // "The game could not be saved."
+		mPaneMsg2->setMsgID(MC64('5585_00', 0x353538355F3030)); // "The game could not be saved."
+		startState(MEMCARD_Message);
+		break;
+	}
+}
+
+/**
+ * @note Address: 0x803C3B00
+ * @note Size: 0x30
+ */
+void TMemoryCard::close()
+{
+	if (mState != MEMCARD_Finish)
+		startState(MEMCARD_Finish);
+}
+
+/**
+ * @note Address: 0x803C3B30
+ * @note Size: 0x24
+ */
+void TMemoryCard::killScreen()
+{
+	startState(MEMCARD_Disabled);
+}
+
+/**
+ * @note Address: 0x803C3B54
+ * @note Size: 0x334
+ */
+void TMemoryCard::setSelect_(bool sel)
+{
+	mSelectionIdx = sel;
+
+	if (mSelectionIdx) {
+		mBlinkFont1.setPaneColors(0);
+		mBlinkFont2.setPaneColors(0);
+		mCursor1.start();
+		mCursor2.start();
+
+	} else {
+		mBlinkFont1.setPaneColors(0);
+		mBlinkFont2.setPaneColors(0);
+		mCursor1.stop();
+		mCursor2.stop();
+	}
+	mCursor1.update();
+	mCursor2.update();
+}
+
+/**
+ * @note Address: 0x803C3FB0
+ * @note Size: 0x28
+ */
+bool TMemoryCard::isFinish()
+{
+	if (mMsgAlpha.isZero() && mState == MEMCARD_Finish) {
+		return true;
+	}
+	return false;
+}
+
+/**
+ * @note Address: N/A
+ * @note Size: 0x14
+ */
+bool TMemoryCard::isDecide()
+{
+	// UNUSED FUNCTION
+}
+
+/**
+ * @note Address: 0x803C3FD8
+ * @note Size: 0x4EC
+ */
+void TMemoryCard::startState(enumState state)
+{
+	mState = state;
+	switch (mState) {
+	case MEMCARD_Disabled:
+		mCursor1.mCursor.kill();
+		mCursor2.mCursor.kill();
+		break;
+	case MEMCARD_Selection:
+		mCursor1.mCursor.kill();
+		mCursor2.mCursor.kill();
+		mPaneMsg3->hide();
+		mPaneMsg4->show();
+		mPaneMsg4->setAlpha(255);
+		mPaneMsg1->show();
+		mPaneMsg1->setAlpha(255);
+		mPaneMsg2->show();
+		mPaneMsg2->setAlpha(255);
+		if (mSelectionIdx == 1) {
+			mBlinkFont1.enable();
+			mBlinkFont2.setPaneColors(0);
+			mCursor1.start();
+			mCursor2.start();
+		} else {
+			mBlinkFont1.setPaneColors(0);
+			mBlinkFont2.enable();
+			mCursor1.stop();
+			mCursor2.stop();
+		}
+		mCursor1.mCursor.create(nullptr);
+		mCursor2.mCursor.create(nullptr);
+		mInputDelay.setValue((u32)20);
+		mAnim2.play(sys->mDeltaTime * 60.0f, J3DAA_UNKNOWN_0, true);
+		mAnim3.play(sys->mDeltaTime * 60.0f, J3DAA_UNKNOWN_0, true);
+		mAnim4.play(sys->mDeltaTime * 60.0f, J3DAA_UNKNOWN_0, true);
+		mAnim5.play(sys->mDeltaTime * 60.0f, J3DAA_UNKNOWN_0, true);
+		mScreenMain->animation();
+		break;
+
+	case MEMCARD_Message:
+		mCursor1.mCursor.kill();
+		mCursor2.mCursor.kill();
+		mPaneMsg4->hide();
+		mPaneMsg1->hide();
+		mPaneMsg2->hide();
+		mPaneMsg3->show();
+		mPaneMsg3->setAlpha(255);
+		mInputDelay.setValue((u32)20);
+		mAnim2.play(sys->mDeltaTime * 60.0f, J3DAA_UNKNOWN_0, true);
+		mAnim3.play(sys->mDeltaTime * 60.0f, J3DAA_UNKNOWN_0, true);
+		mAnim4.play(sys->mDeltaTime * 60.0f, J3DAA_UNKNOWN_0, true);
+		mAnim5.play(sys->mDeltaTime * 60.0f, J3DAA_UNKNOWN_0, true);
+		mScreenMain->animation();
+		break;
+	case MEMCARD_Finish:
+		mMsgAlpha.setValue((u32)30);
+		break;
+	}
+}
+
+/**
+ * @note Address: 0x803C44C4
+ * @note Size: 0x8C8
+ */
+void TMemoryCard::update()
+{
+	switch (mState) {
+	case MEMCARD_Disabled:
+		break;
+	case MEMCARD_Selection:
+		mInputDelay.update();
+		if (mInputDelay.isZero() && mCanExit) {
+			if (mController->isMoveRight()) {
+				if (mSelectionIdx == 1) {
+					mSelectionIdx = 0;
+					mBlinkFont1.disable();
+					mBlinkFont2.enable();
+					mCursor1.mIsLeft = false;
+					mCursor2.mIsLeft = false;
+					PSSystem::spSysIF->playSystemSe(PSSE_SY_MENU_CURSOR, 0);
+				}
+			} else if (mController->isMoveLeft()) {
+				if (mSelectionIdx == 0) {
+					mSelectionIdx = 1;
+					mBlinkFont1.enable();
+					mBlinkFont2.disable();
+					mCursor1.mIsLeft = true;
+					mCursor2.mIsLeft = true;
+					PSSystem::spSysIF->playSystemSe(PSSE_SY_MENU_CURSOR, 0);
+				}
+			} else if (mController->getButtonDown() & Controller::PRESS_A) {
+				if (mSelectionIdx == 1) {
+					mBlinkFont1.setPaneColors(1);
+					mBlinkFont2.setPaneColors(0);
+					mCursor1.start();
+					mCursor2.start();
+				} else {
+					mBlinkFont1.setPaneColors(0);
+					mBlinkFont2.setPaneColors(1);
+					mCursor1.stop();
+					mCursor2.stop();
+				}
+				mCursor1.update();
+				mCursor2.update();
+				startState(MEMCARD_Finish);
+				PSSystem::spSysIF->playSystemSe(PSSE_SY_MENU_DECIDE, 0);
+				return;
+			} else if (mController->getButtonDown() & Controller::PRESS_B) {
+				mSelectionIdx = 0;
+				mBlinkFont1.setPaneColors(0);
+				mBlinkFont2.setPaneColors(1);
+				mCursor1.stop();
+				mCursor2.stop();
+				mCursor1.update();
+				mCursor2.update();
+				PSSystem::spSysIF->playSystemSe(PSSE_SY_MENU_CANCEL, 0);
+				startState(MEMCARD_Finish);
+				return;
+			}
+		}
+		mCursor1.update();
+		mCursor2.update();
+		mScreenMain->update();
+		break;
+
+	case MEMCARD_Message:
+		mInputDelay.update();
+		if (mInputDelay.isZero()) {
+			bool end  = false;
+			u32 input = mController->getButtonDown();
+			if ((input & Controller::PRESS_A) || (input & Controller::PRESS_B) || (input & Controller::PRESS_X)
+			    || (input & Controller::PRESS_Y) || (input & Controller::PRESS_START)) {
+				end = true;
+			}
+			if (end && mCanExit) {
+				startState(MEMCARD_Finish);
+				return;
+			}
+		}
+		mScreenMain->update();
+		if (mIsPlaySavingSE) {
+			PSSystem::spSysIF->playSystemSe(PSSE_SY_MEMORYCARD_ACCESS, 0);
+		}
+		break;
+
+	case MEMCARD_Finish:
+		mMsgAlpha.update();
+
+		if (mMsgAlpha.getRatio() < 0.7f) {
+			mCursor1.mCursor.fade();
+			mCursor2.mCursor.fade();
+
+			u32 alpha = (u8)((mMsgAlpha.getRatio() / 0.7f) * 255.0f);
+			mPaneMsg1->setAlpha(alpha);
+			mPaneMsg2->setAlpha(alpha);
+			mPaneMsg3->setAlpha(alpha);
+			mPaneMsg4->setAlpha(alpha);
+		}
+		mScreenMain->update();
+		break;
+	}
+}
+
+/**
+ * @note Address: 0x803C4D8C
+ * @note Size: 0x80
+ */
+void TMemoryCard::draw()
+{
+	if (mState == MEMCARD_Disabled) {
+		return;
+	}
+
+	Graphics* gfx       = sys->getGfx();
+	J2DPerspGraph* graf = gfx->getPerspGraph();
+
+	// computers were a mistake.
+	for (int i = 0; i < 1; i++) {
+		graf->setPort();
+		mScreenMain->draw(*gfx, *graf);
+	}
+}
+
+} // namespace Screen
+} // namespace ebi
