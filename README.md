@@ -79,7 +79,7 @@ saves are stored in your user data folder (`~/.local/share/mppm` on Linux,
 
 ## Building from source
 
-You need CMake 3.25+, Ninja, Clang (or Apple Clang / MSVC with clang-cl), Python 3 and Git.
+You need CMake 3.25+, Ninja, Clang (Apple Clang on macOS, clang-cl on Windows), Python 3 and Git.
 The build downloads Aurora's dependencies (SDL3, Dawn and others) as it goes.
 
 ```sh
@@ -101,8 +101,15 @@ sudo apt-get install ninja-build clang lld libvulkan-dev libx11-xcb-dev libxi-de
   libcurl4-openssl-dev
 ```
 
-On Windows, run the commands from a **Developer PowerShell for Visual Studio 2022** (with the C++
-workload and the clang-cl component), and use `-DCMAKE_C_COMPILER=clang-cl -DCMAKE_CXX_COMPILER=clang-cl`.
+On Windows, install Visual Studio 2022 or newer with the **Desktop development with C++** workload
+and its **C++ Clang tools** component, open a **Developer PowerShell**, and configure with
+Visual Studio's own clang-cl (a standalone LLVM may be too old for its C++ library):
+
+```powershell
+$cl = "$env:VCINSTALLDIR\Tools\Llvm\x64\bin\clang-cl.exe"
+cmake -S . -B build-pc -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo "-DCMAKE_C_COMPILER=$cl" "-DCMAKE_CXX_COMPILER=$cl"
+cmake --build build-pc --target mppm
+```
 On macOS, install Xcode and `brew install ninja`, and leave out the compiler options.
 
 [.github/workflows/ci.yml](.github/workflows/ci.yml) builds all three systems on every push, and
