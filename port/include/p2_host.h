@@ -197,3 +197,10 @@ extern "C" P2PresentState gP2Present;
 // ---- Online harness (docs/ONLINE_MULTIPLAYER.md, M5.1a): port/net ----
 #include "p2_navi.h"
 #include "p2_net.h"
+
+#if defined(_WIN32)
+// The Windows CRT's math.h defines _C2, which the game uses as a member name (HurryUp.h). Read
+// math.h once here, then drop the macro; the include guard keeps later includes from bringing it back.
+#include <math.h>
+#undef _C2
+#endif
