@@ -33,7 +33,7 @@ cp -r "$build/res" "$app/usr/bin/res"
 notices "$app/usr/share/doc/moonsprout"
 cp packaging/linux/moonsprout.desktop "$app/usr/share/applications/"
 cp port/launcher/res/img/icon-256.png "$app/usr/share/icons/hicolor/256x256/apps/moonsprout.png"
-export APPIMAGE_EXTRACT_AND_RUN=1 ARCH=x86_64 VERSION="$version" LDAI_OUTPUT="$out/$name.AppImage"
+export NO_STRIP=1 APPIMAGE_EXTRACT_AND_RUN=1 ARCH=x86_64 LINUXDEPLOY_OUTPUT_VERSION="$version" LDAI_OUTPUT="$out/$name.AppImage"
 "${LINUXDEPLOY:-linuxdeploy}" --appdir "$app" --output appimage \
     --desktop-file "$app/usr/share/applications/moonsprout.desktop" \
     --icon-file "$app/usr/share/icons/hicolor/256x256/apps/moonsprout.png"
