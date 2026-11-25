@@ -113,8 +113,10 @@ jobs:
       fail-fast: false
       matrix:
         include:
+          # GitHub's arm64 macOS pool often cannot take jobs ("not acquired ... capacity"), so arm64 is
+          # cross-compiled on the Intel runner; Aurora's providers follow CMAKE_OSX_ARCHITECTURES.
           - arch: arm64
-            runner: macos-15
+            runner: macos-15-intel
           - arch: x86_64
             runner: macos-15-intel
     runs-on: ${{ matrix.runner }}
@@ -128,7 +130,7 @@ jobs:
       - name: Install tools
         run: brew install ninja llvm
       - name: Configure
-        run: cmake -S . -B build-pc -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo -DCMAKE_OSX_DEPLOYMENT_TARGET=13.0 -DP2_OBJCOPY="$(brew --prefix llvm)/bin/llvm-objcopy"
+        run: cmake -S . -B build-pc -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo -DCMAKE_OSX_DEPLOYMENT_TARGET=13.0 -DCMAKE_OSX_ARCHITECTURES=${{ matrix.arch }} -DP2_OBJCOPY="$(brew --prefix llvm)/bin/llvm-objcopy"
       - name: Build
         run: cmake --build build-pc --target mppm
       - name: Check the version
