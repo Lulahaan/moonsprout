@@ -20,8 +20,8 @@ const int BLOCK_MESSAGE      = 'JMSG';
 const int BLOCK_PARTICLE     = 'JPTC';
 const int BLOCK_NONE         = -1;
 
-extern const u32 ga4cSignature; // 'STB/0'
-extern const u32 gauDataSize_TEParagraph_data[8];
+extern const PC_SWITCH(char ga4cSignature[4], u32 ga4cSignature); // 'STB/0' (PC: the definition's type, MSVC mangles it)
+extern const PC_SWITCH(s32, u32) gauDataSize_TEParagraph_data[8];
 
 inline void toString_block(char* a5c, u32 arg1); // unused/inlined
 

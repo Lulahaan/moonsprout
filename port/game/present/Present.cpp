@@ -67,6 +67,7 @@
 #include <time.h>
 #include <chrono>
 #include <thread>
+#include "p2_vtable.h"
 
 extern void* MEM1Start; // Aurora (lib/dolphin/os/OSMemory.cpp): the emulated main memory
 extern void* MEM1End;
@@ -282,12 +283,12 @@ void sort_recs(Buf<Rec>& b)
 // built without RTTI, so this is how a live section is told apart from a stale Game::gameSystem
 // (it is never cleared when a game section ends, and its memory is reused).
 #if defined(__GNUC__) || defined(__clang__)
-extern "C" void* _ZTVN4Game17SingleGameSectionE[];
-extern "C" void* _ZTVN4Game13VsGameSectionE[];
+P2_VTABLE(_ZTVN4Game17SingleGameSectionE, "??_7SingleGameSection@Game@@6B@")
+P2_VTABLE(_ZTVN4Game13VsGameSectionE, "??_7VsGameSection@Game@@6B@")
 int section_kind(void* s) // 1 story, 2 challenge / versus, 0 other
 {
 	void* vptr = *static_cast<void**>(s);
-	return vptr == &_ZTVN4Game17SingleGameSectionE[2] ? 1 : (vptr == &_ZTVN4Game13VsGameSectionE[2] ? 2 : 0);
+	return vptr == P2_VPTR(_ZTVN4Game17SingleGameSectionE) ? 1 : (vptr == P2_VPTR(_ZTVN4Game13VsGameSectionE) ? 2 : 0);
 }
 #else
 int section_kind(void*) { return 0; }
@@ -1062,7 +1063,7 @@ void register_render_only()
 }
 
 #if defined(__GNUC__) || defined(__clang__)
-extern "C" void* _ZTV12J3DMtxBuffer[];
+P2_VTABLE(_ZTV12J3DMtxBuffer, "??_7J3DMtxBuffer@@6B@")
 #endif
 
 bool in_mem1(const void* p, size_t size)
@@ -1078,7 +1079,7 @@ bool in_mem1(const void* p, size_t size)
 void register_all_mtx_buffers()
 {
 #if defined(__GNUC__) || defined(__clang__)
-	const void* vptr         = &_ZTV12J3DMtxBuffer[2];
+	const void* vptr         = P2_VPTR(_ZTV12J3DMtxBuffer);
 	const unsigned char* mem = static_cast<const unsigned char*>(MEM1Start);
 	for (size_t k = 0; k + sizeof(J3DMtxBuffer) <= sMemSize; k += 8) {
 		const void* v;

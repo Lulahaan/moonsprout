@@ -39,6 +39,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "p2_vtable.h"
 
 namespace {
 
@@ -182,12 +183,12 @@ void nplayer_stats()
 // the next section's heap, so it is read only once the armed section is known to be the running
 // game section (the same check as Present.cpp's section_kind).
 #if defined(__GNUC__) || defined(__clang__)
-extern "C" void* _ZTVN4Game17SingleGameSectionE[];
-extern "C" void* _ZTVN4Game13VsGameSectionE[];
+P2_VTABLE(_ZTVN4Game17SingleGameSectionE, "??_7SingleGameSection@Game@@6B@")
+P2_VTABLE(_ZTVN4Game13VsGameSectionE, "??_7VsGameSection@Game@@6B@")
 bool is_game_section(Section* s)
 {
 	void* vptr = *reinterpret_cast<void**>(s);
-	return vptr == &_ZTVN4Game17SingleGameSectionE[2] || vptr == &_ZTVN4Game13VsGameSectionE[2];
+	return vptr == P2_VPTR(_ZTVN4Game17SingleGameSectionE) || vptr == P2_VPTR(_ZTVN4Game13VsGameSectionE);
 }
 #else
 bool is_game_section(Section*) { return false; }

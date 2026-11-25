@@ -65,6 +65,15 @@ jobs:
           cmake -S . -B build-pc -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo "-DCMAKE_C_COMPILER=$cl" "-DCMAKE_CXX_COMPILER=$cl"
       - name: Build
         run: cmake --build build-pc --target mppm -- -k 0 # report every failing file
+      - name: Upload the build
+        uses: actions/upload-artifact@v4
+        with:
+          name: moonsprout-windows-x64-ci
+          path: |
+            build-pc/mppm.exe
+            build-pc/*.dll
+            build-pc/res/
+          retention-days: 7
 
   server:
     name: Lobby server

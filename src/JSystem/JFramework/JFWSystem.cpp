@@ -16,7 +16,7 @@
 #include "JSystem/JUtility/JUTVideo.h"
 #include "types.h"
 
-extern ResFONT JUTResFONT_Ascfont_fix12;
+PC_SWITCH(extern const int JUTResFONT_Ascfont_fix12[];, extern ResFONT JUTResFONT_Ascfont_fix12;) // PC: the definition's type (MSVC mangles it)
 
 JKRHeap* JFWSystem::rootHeap;
 JKRExpHeap* JFWSystem::systemHeap;
@@ -35,7 +35,7 @@ u32 JFWSystem::CSetUpParam::aramGraphBufSize        = 0x600000;
 s32 JFWSystem::CSetUpParam::streamPriority          = 8;
 s32 JFWSystem::CSetUpParam::decompPriority          = 7;
 s32 JFWSystem::CSetUpParam::aPiecePriority          = 6;
-ResFONT* JFWSystem::CSetUpParam::systemFontRes      = &JUTResFONT_Ascfont_fix12;
+ResFONT* JFWSystem::CSetUpParam::systemFontRes      = PC_SWITCH((ResFONT*)JUTResFONT_Ascfont_fix12, &JUTResFONT_Ascfont_fix12);
 GXRenderModeObj* JFWSystem::CSetUpParam::renderMode = &GXNtsc480IntDf;
 u32 JFWSystem::CSetUpParam::exConsoleBufferSize     = 0x24FC;
 

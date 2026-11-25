@@ -16,16 +16,11 @@
 #include "Screen/screenMgr.h"
 
 #include "p2_host.h"
+#include "p2_vtable.h"
 
-#if defined(__GNUC__) && !defined(_MSC_VER)
-// Itanium C++ ABI: an object's vtable pointer is the vtable symbol plus two pointer-sized slots
-// (offset to top, type info), whether or not RTTI is enabled.
-extern "C" char _ZTVN5Title7SectionE[];
-extern "C" char _ZTVN4Game17SingleGameSectionE[];
+P2_VTABLE(_ZTVN5Title7SectionE, "??_7Section@Title@@6B@")
+P2_VTABLE(_ZTVN4Game17SingleGameSectionE, "??_7SingleGameSection@Game@@6B@")
 #define P2_HAVE_VTABLE_QUERY 1
-
-static const void* vtable_address(char* symbol) { return symbol + 2 * sizeof(void*); }
-#endif
 
 extern "C" int p2_game_progress_at_risk(void)
 {
@@ -39,10 +34,10 @@ extern "C" int p2_game_progress_at_risk(void)
 		return 0; // boot logos (the boot section is its own current section) or between sections
 	}
 	const void* vtable = *reinterpret_cast<void* const*>(current);
-	if (vtable == vtable_address(_ZTVN5Title7SectionE)) {
+	if (vtable == P2_VPTR(_ZTVN5Title7SectionE)) {
 		return 0;
 	}
-	if (vtable == vtable_address(_ZTVN4Game17SingleGameSectionE)) {
+	if (vtable == P2_VPTR(_ZTVN4Game17SingleGameSectionE)) {
 		Game::SingleGame::State* state = static_cast<Game::SingleGameSection*>(current)->getCurrState();
 		if (state != nullptr && state->getCurrStateID() == Game::SingleGame::SGS_File) {
 			return 0; // file select
