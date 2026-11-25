@@ -252,7 +252,8 @@ endif ()
 list(JOIN _p2_syms "\n" _p2_syms)
 file(WRITE ${CMAKE_BINARY_DIR}/p2_new_syms.tmp "${_p2_syms}\n")
 configure_file(${CMAKE_BINARY_DIR}/p2_new_syms.tmp ${CMAKE_BINARY_DIR}/p2_new_syms.txt COPYONLY) # rewritten only on a change
-find_program(P2_OBJCOPY NAMES llvm-objcopy objcopy REQUIRED)
+# macOS has no objcopy: Homebrew's llvm (brew install llvm) provides llvm-objcopy, found here.
+find_program(P2_OBJCOPY NAMES llvm-objcopy objcopy HINTS /opt/homebrew/opt/llvm/bin /usr/local/opt/llvm/bin REQUIRED)
 # The rename runs only when the archive is linked again: make one game object depend on the list,
 # so editing cmake/p2_new_syms.txt.in re-creates the archive and renames it with the new list.
 list(GET PORT_GAME_SOURCES 0 _p2_syms_dep_source)

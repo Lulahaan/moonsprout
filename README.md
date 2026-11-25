@@ -110,7 +110,7 @@ $cl = "$env:VCINSTALLDIR\Tools\Llvm\x64\bin\clang-cl.exe"
 cmake -S . -B build-pc -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo "-DCMAKE_C_COMPILER=$cl" "-DCMAKE_CXX_COMPILER=$cl"
 cmake --build build-pc --target mppm
 ```
-On macOS, install Xcode and `brew install ninja`, and leave out the compiler options.
+On macOS, install Xcode and `brew install ninja llvm` (the build uses LLVM's `llvm-objcopy`), and leave out the compiler options.
 
 [.github/workflows/ci.yml](.github/workflows/ci.yml) builds all three systems on every push, and
 [docs/PORT_STATUS.md](docs/PORT_STATUS.md) has developer switches, test scripts and notes on
