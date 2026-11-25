@@ -56,8 +56,13 @@ jobs:
       - uses: ilammy/msvc-dev-cmd@v1
         with:
           arch: x64
+      # Visual Studio's own clang-cl: its STL needs a newer Clang than the runner's C:\Program Files\LLVM.
       - name: Configure
-        run: cmake -S . -B build-pc -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo -DCMAKE_C_COMPILER=clang-cl -DCMAKE_CXX_COMPILER=clang-cl
+        shell: pwsh
+        run: |
+          $cl = "$env:VCINSTALLDIR\Tools\Llvm\x64\bin\clang-cl.exe"
+          & $cl --version
+          cmake -S . -B build-pc -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo "-DCMAKE_C_COMPILER=$cl" "-DCMAKE_CXX_COMPILER=$cl"
       - name: Build
         run: cmake --build build-pc --target mppm
 
