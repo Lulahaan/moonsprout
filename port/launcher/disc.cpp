@@ -13,6 +13,16 @@
 namespace mppm::disc {
 namespace {
 
+// file_clock -> system_clock. MSVC's STL has clock_cast but no file_clock::to_sys; libstdc++ and
+// libc++ have to_sys (Apple's libc++ has no clock_cast).
+std::chrono::system_clock::time_point to_system_time(std::filesystem::file_time_type t) {
+#if defined(_MSC_VER)
+    return std::chrono::clock_cast<std::chrono::system_clock>(t);
+#else
+    return std::chrono::time_point_cast<std::chrono::system_clock::duration>(std::chrono::file_clock::to_sys(t));
+#endif
+}
+
 using namespace std::string_view_literals;
 
 // The decomp is built for the North American release (GPVE01, revision 0). Reference: a 1459978240-
@@ -106,7 +116,7 @@ std::string fingerprint(const std::string& path) {
     }
     // Unix seconds, so the stored text reads the same on every platform and library.
     const auto seconds = std::chrono::duration_cast<std::chrono::seconds>(
-                             std::chrono::file_clock::to_sys(mtime).time_since_epoch())
+                             to_system_time(mtime).time_since_epoch())
                              .count();
     return fmt::format("{}:{}", size, seconds);
 }

@@ -463,6 +463,9 @@ JKRHeapErrorHandler* JKRHeap::setErrorHandler(JKRHeapErrorHandler* newHandler)
 // Static constructors run before any JKRHeap exists, so fall back to malloc then, and let operator
 // delete free anything that is not inside a JKRHeap.
 #include <cstdlib>
+#if defined(_WIN32)
+#include <malloc.h> // _aligned_malloc, _aligned_free
+#endif
 
 static void* p2_fallback_alloc(size_t size, int align)
 {
@@ -470,11 +473,15 @@ static void* p2_fallback_alloc(size_t size, int align)
 	if (a < alignof(max_align_t)) {
 		a = alignof(max_align_t);
 	}
+#if defined(_WIN32)
+	return _aligned_malloc(size ? size : 1, a); // freed with _aligned_free (p2_heap_free)
+#else
 	void* mem = nullptr;
 	if (posix_memalign(&mem, a, size ? size : 1) != 0) {
 		return nullptr;
 	}
 	return mem;
+#endif
 }
 
 static void* p2_heap_alloc(size_t size, int align, JKRHeap* heap)
@@ -497,7 +504,11 @@ static void p2_heap_free(void* memory)
 	if (heap) {
 		heap->free(memory);
 	} else {
+#if defined(_WIN32)
+		_aligned_free(memory);
+#else
 		std::free(memory);
+#endif
 	}
 }
 

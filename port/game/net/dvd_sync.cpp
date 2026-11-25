@@ -14,6 +14,8 @@
 
 #include <stdio.h>
 #include <time.h>
+#include <chrono>
+#include <thread>
 
 extern "C" void p2_host_block_begin(); // port/sdk/os_thread.cpp: other game threads may run between
 extern "C" void p2_host_block_end();
@@ -25,9 +27,7 @@ const double kWarnAfterSec = 30.0;
 
 double wall_seconds()
 {
-	struct timespec ts;
-	clock_gettime(CLOCK_MONOTONIC, &ts);
-	return (double)ts.tv_sec + (double)ts.tv_nsec * 1e-9;
+	return std::chrono::duration<double>(std::chrono::steady_clock::now().time_since_epoch()).count();
 }
 
 } // namespace
@@ -61,8 +61,7 @@ extern "C" void p2_net_dvd_sync(void* p)
 			fflush(stderr);
 		}
 		p2_host_block_begin();
-		const struct timespec ts = { 0, kWaitStepNs };
-		nanosleep(&ts, nullptr);
+		std::this_thread::sleep_for(std::chrono::nanoseconds(kWaitStepNs));
 		p2_host_block_end();
 	}
 	p2_rng_handoff(0);

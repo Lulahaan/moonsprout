@@ -429,7 +429,7 @@ struct TFunctionValue_list_parameter : public TFunctionValue,
 
 		const f32* get() const { return mValue; }
 		void set(const f32* value) { mValue = value; }
-		f32 operator*() { return *mValue; }
+		f32 operator*() { return *mValue; } PC_ONLY(f32 operator*() const { return *mValue; }) // const: MSVC STL
 
 		TIterator_data_& operator++()
 		{
@@ -537,7 +537,7 @@ struct TFunctionValue_hermite : public TFunctionValue, public TFunctionValueAttr
 
 		friend s32 operator-(const TIterator_data_& r1, const TIterator_data_& r2) { return (r1.mValue - r2.mValue) / r1.size_; }
 
-		f32 operator*() { return *mValue; }
+		f32 operator*() { return *mValue; } PC_ONLY(f32 operator*() const { return *mValue; }) // const: MSVC STL
 
 		const f32* mValue; // _00
 		u32 size_;         // _04

@@ -1,3 +1,4 @@
+cmake_minimum_required(VERSION 3.25)
 # Build check for the vendored libm (docs/online/M5_1B_BUILD.md), run with cmake -P after the
 # objcopy step that routes the game's math to p2libm (CMakeLists.txt).
 #   NM          the nm program

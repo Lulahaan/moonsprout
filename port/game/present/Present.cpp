@@ -65,6 +65,8 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+#include <chrono>
+#include <thread>
 
 extern void* MEM1Start; // Aurora (lib/dolphin/os/OSMemory.cpp): the emulated main memory
 extern void* MEM1End;
@@ -1581,8 +1583,7 @@ int p2_game_present(float alpha)
 	check_begin();
 	{
 		p2_host_block_begin();
-		const struct timespec ts = { 0, 20000000 }; // more than one retrace
-		nanosleep(&ts, nullptr);
+		std::this_thread::sleep_for(std::chrono::milliseconds(20)); // more than one retrace
 		p2_host_block_end();
 	}
 	check_diff(0, false);

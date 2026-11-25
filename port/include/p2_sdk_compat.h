@@ -172,4 +172,10 @@ BOOL p2_DVDChangeDir(const char* path);
 #define DVDOpenDir p2_DVDOpenDir
 #define DVDChangeDir p2_DVDChangeDir
 
+// include/Dolphin/gd.h defines this, but on a case-insensitive filesystem (Windows, macOS)
+// "Dolphin/gd.h" finds Aurora's dolphin/gd.h first, so define it here too (same definition).
+#ifndef GD_CURR_U8PTR
+#define GD_CURR_U8PTR() ((u8*)GDGetCurrPointer())
+#endif
+
 #endif
