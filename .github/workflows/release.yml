@@ -1,0 +1,182 @@
+name: Release
+
+# Builds Moonsprout for Windows, Linux and macOS and publishes a GitHub release.
+# Push a tag to run it: vX.Y.Z makes a release, vX.Y.Z-<pre> (for example v0.2.0-rc.1) a prerelease.
+# A manual run rebuilds an existing tag and replaces its files. The repository skill
+# .claude/skills/release/SKILL.md describes the whole procedure.
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing tag to build and publish (for example v0.2.0-rc.1)
+        required: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ inputs.tag || github.ref_name }}
+  cancel-in-progress: false
+
+env:
+  TAG: ${{ inputs.tag || github.ref_name }}
+
+jobs:
+  meta:
+    name: Version
+    runs-on: ubuntu-24.04
+    outputs:
+      version: ${{ steps.v.outputs.version }}
+      prerelease: ${{ steps.v.outputs.prerelease }}
+    steps:
+      - id: v
+        run: |
+          if [[ ! "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?$ ]]; then
+            echo "::error::Tag '$TAG' is not vX.Y.Z or vX.Y.Z-<prerelease>"
+            exit 1
+          fi
+          echo "version=${TAG#v}" >> "$GITHUB_OUTPUT"
+          if [[ "$TAG" == *-* ]]; then echo "prerelease=true"; else echo "prerelease=false"; fi >> "$GITHUB_OUTPUT"
+
+  linux:
+    name: Linux x86_64
+    needs: meta
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.TAG }}
+          fetch-depth: 0
+          submodules: recursive
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get -y install ninja-build clang lld libvulkan-dev libx11-xcb-dev libxi-dev libxrandr-dev \
+            libxinerama-dev libxcursor-dev libxss-dev libxtst-dev libxfixes-dev libasound2-dev libpulse-dev libudev-dev libdbus-1-dev \
+            libdecor-0-dev libpipewire-0.3-dev libwayland-dev libxkbcommon-dev libcurl4-openssl-dev
+          curl -fsSL -o /usr/local/bin/linuxdeploy \
+            https://github.com/linuxdeploy/linuxdeploy/releases/download/1-alpha-20251107-1/linuxdeploy-x86_64.AppImage
+          chmod +x /usr/local/bin/linuxdeploy
+      - name: Configure
+        run: cmake -S . -B build-pc -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++
+      - name: Build
+        run: cmake --build build-pc --target mppm
+      - name: Check the version
+        run: grep -F "\"${{ needs.meta.outputs.version }}\"" build-pc/generated/mppm_version.h
+      - name: Package
+        run: tools/release/package-linux.sh "${{ needs.meta.outputs.version }}" build-pc dist
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux
+          path: dist/*
+          if-no-files-found: error
+
+  windows:
+    name: Windows x64
+    needs: meta
+    runs-on: windows-2025
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.TAG }}
+          fetch-depth: 0
+          submodules: recursive
+      - uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+      - name: Configure
+        shell: pwsh
+        run: |
+          $cl = "$env:VCINSTALLDIR\Tools\Llvm\x64\bin\clang-cl.exe"
+          cmake -S . -B build-pc -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo "-DCMAKE_C_COMPILER=$cl" "-DCMAKE_CXX_COMPILER=$cl"
+      - name: Build
+        run: cmake --build build-pc --target mppm
+      - name: Check the version
+        shell: bash
+        run: grep -F "\"${{ needs.meta.outputs.version }}\"" build-pc/generated/mppm_version.h
+      - name: Package
+        shell: pwsh
+        run: tools/release/package-windows.ps1 -Version "${{ needs.meta.outputs.version }}" -BuildDir build-pc -OutDir dist
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows
+          path: dist/*
+          if-no-files-found: error
+
+  macos:
+    name: macOS ${{ matrix.arch }}
+    needs: meta
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: arm64
+            runner: macos-15
+          - arch: x86_64
+            runner: macos-15-intel
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.TAG }}
+          fetch-depth: 0
+          submodules: recursive
+      - name: Install tools
+        run: brew install ninja
+      - name: Configure
+        run: cmake -S . -B build-pc -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo -DCMAKE_OSX_DEPLOYMENT_TARGET=13.0
+      - name: Build
+        run: cmake --build build-pc --target mppm
+      - name: Check the version
+        run: grep -F "\"${{ needs.meta.outputs.version }}\"" build-pc/generated/mppm_version.h
+      - name: Package
+        run: tools/release/package-macos.sh "${{ needs.meta.outputs.version }}" build-pc dist "${{ matrix.arch }}"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: macos-${{ matrix.arch }}
+          path: dist/*
+          if-no-files-found: error
+
+  publish:
+    name: Publish
+    needs: [meta, linux, windows, macos]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      VERSION: ${{ needs.meta.outputs.version }}
+      PRERELEASE: ${{ needs.meta.outputs.prerelease }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.TAG }}
+          fetch-depth: 0
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      - name: Checksums
+        working-directory: dist
+        run: |
+          sha256sum Moonsprout-* > SHA256SUMS.txt
+          cat SHA256SUMS.txt
+      - name: Notes
+        run: |
+          # Optional hand-written notes for this tag: the annotated tag's message, if any.
+          git for-each-ref "refs/tags/$TAG" --format='%(contents:body)' > extra.md
+          tools/release/notes.sh "$TAG" dist "$GITHUB_REPOSITORY" extra.md > notes.md
+          cat notes.md
+      - name: Create or update the release
+        run: |
+          flags=(--title "Moonsprout $VERSION" --notes-file notes.md)
+          if [ "$PRERELEASE" = true ]; then flags+=(--prerelease); else flags+=(--latest); fi
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release edit "$TAG" "${flags[@]}"
+            gh release upload "$TAG" dist/* --clobber
+          else
+            gh release create "$TAG" dist/* "${flags[@]}" --verify-tag
+          fi
