@@ -4,6 +4,7 @@
 // side used by the seam (session.hpp): START and END applied in p2_net_game_poll, readiness, the
 // desync report, the end and summary lines.
 #include "session.hpp"
+#include "p2_data_dir.hpp"
 
 #include "../lobby_client.hpp"
 #include "../transport.hpp"
@@ -89,11 +90,7 @@ bool env_true(const char* name)
 
 std::string pref_dir()
 {
-	char* p = SDL_GetPrefPath(nullptr, "mppm");
-	if (!p) return {};
-	std::string s = p;
-	SDL_free(p);
-	return s;
+	return mppm::data_dir_utf8();
 }
 
 std::string pretty_code(const std::string& c8) { return c8.size() == 8 ? c8.substr(0, 4) + "-" + c8.substr(4) : c8; }

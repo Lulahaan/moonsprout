@@ -9,6 +9,7 @@
 // Host-side C++ only: no game headers. With no flag and no environment variable set, every entry
 // point returns at its first line, nothing is opened and nothing is printed.
 #include "p2_net.h"
+#include "p2_data_dir.hpp"
 #include "p2_mods.h"
 #include "session/session.hpp"
 
@@ -1156,10 +1157,8 @@ extern "C" unsigned p2_net_boot_seed(unsigned clockSeed)
 static std::string online_record_path()
 {
 	if (!s_cfg.record.empty()) return s_cfg.record;
-	char* pref = SDL_GetPrefPath(nullptr, "mppm");
-	if (!pref) return {};
-	std::string dir = std::string(pref) + "net/sessions/";
-	SDL_free(pref);
+	if (mppm::data_dir_utf8().empty()) return {};
+	std::string dir = mppm::data_dir_utf8() + "net/sessions/";
 	std::error_code ec;
 	std::filesystem::create_directories(dir, ec);
 	std::vector<std::filesystem::path> old;

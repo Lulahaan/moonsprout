@@ -1,4 +1,5 @@
 #include "settings_window.hpp"
+#include "p2_data_dir.hpp"
 
 #include "config_bind.hpp"
 #include "input.hpp"
@@ -94,13 +95,7 @@ std::string product() { return branding::kProductName; }
 
 // The folder where settings, saves and logs live (the same one launcher::preinit gives Aurora).
 const std::string& data_folder() {
-    static const std::string sDir = [] {
-        char* pref = SDL_GetPrefPath(nullptr, branding::kDataDirName);
-        std::string dir = pref != nullptr ? pref : "";
-        SDL_free(pref);
-        return dir;
-    }();
-    return sDir;
+    return mppm::data_dir_utf8();
 }
 
 // disc::inspect reads the image's header; rows ask every frame, so remember the last answer.

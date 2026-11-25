@@ -1,9 +1,11 @@
 // Default keyboard layout for port 1 (docs/launcher/SETTINGS.md 8). Moved out of port/main.cpp so
 // the controller window's "Restore Defaults" can apply the same table.
 #include "mppm/input_defaults.hpp"
+#include "p2_data_dir.hpp"
 
 #include "branding.hpp"
 
+#include <borealis/io.hpp>
 #include <dolphin/pad.h>
 
 #include <SDL3/SDL_filesystem.h>
@@ -43,12 +45,11 @@ std::array<bool, PAD_MAX_CONTROLLERS> sStartupDone{};
 // first time anything is saved from the controller window. Its presence means the player's own
 // choices are on disk, including a keyboard they switched off.
 bool bindings_saved() {
-    char* pref = SDL_GetPrefPath(nullptr, branding::kDataDirName);
-    if (pref == nullptr) {
+    const std::string& dir = mppm::data_dir_utf8();
+    if (dir.empty()) {
         return false;
     }
-    const std::filesystem::path file = std::filesystem::path(pref) / "keyboard_bindings.dat";
-    SDL_free(pref);
+    const std::filesystem::path file = borealis::io::fs_path_from_utf8(dir) / "keyboard_bindings.dat";
     std::error_code ec;
     return std::filesystem::is_regular_file(file, ec);
 }

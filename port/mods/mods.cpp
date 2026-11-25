@@ -6,6 +6,7 @@
 // Aurora and nothing is logged (unless the folder came from --mods-dir / MPPM_MODS_DIR: one
 // "none on" line), and p2_net_set_content gets the stock content.
 #include "p2_mods.h"
+#include "p2_data_dir.hpp"
 #include "p2_mods.hpp"
 #include "p2_net.h"
 
@@ -148,10 +149,8 @@ extern "C" const char* p2_mods_dir(void)
 			return;
 		}
 		// The launcher's data folder (<userdir>), so the mods folder always sits beside its settings.
-		char* pref = SDL_GetPrefPath(nullptr, mppm::branding::kDataDirName);
-		if (pref != nullptr) {
-			sDir = std::string(pref) + "mods";
-			SDL_free(pref);
+		if (!mppm::data_dir_utf8().empty()) {
+			sDir = mppm::data_dir_utf8() + "mods";
 		}
 	});
 	return sDir.c_str();

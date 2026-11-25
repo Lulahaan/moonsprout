@@ -1,4 +1,5 @@
 #include "saves_window.hpp"
+#include "p2_data_dir.hpp"
 
 #include "branding.hpp"
 #include "disc.hpp"
@@ -95,10 +96,8 @@ const char* storage_label(const Storage& storage) {
 }
 
 fs::path data_dir() {
-    char* pref = SDL_GetPrefPath(nullptr, branding::kDataDirName);
-    fs::path dir = pref != nullptr ? borealis::io::fs_path_from_utf8(pref) : fs::path(".");
-    SDL_free(pref);
-    return dir;
+    const std::string& dir = mppm::data_dir_utf8();
+    return dir.empty() ? fs::path(".") : borealis::io::fs_path_from_utf8(dir);
 }
 
 fs::path backups_dir() {
