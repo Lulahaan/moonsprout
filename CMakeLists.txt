@@ -59,10 +59,13 @@ foreach (patch ${AURORA_PATCHES})
         message(STATUS "Applied ${patch}")
     endif ()
 endforeach ()
-if (APPLE)
-    # Homebrew's zstd (a dependency of its llvm) has a CMake package whose target lacks the include
-    # path; let Aurora build its own copy instead.
-    set(CMAKE_DISABLE_FIND_PACKAGE_zstd ON)
+if (APPLE AND NOT MPPM_USE_HOMEBREW_PACKAGES)
+    # Never link Homebrew's libraries (zstd, libpng, ...): a shipped app cannot depend on them, and
+    # on Intel Macs their /usr/local include path is dropped as an implicit directory. Aurora and
+    # borealis then build their own static copies. Only llvm-objcopy is taken from Homebrew.
+    option(MPPM_USE_HOMEBREW_PACKAGES "Let dependencies use Homebrew packages (local builds only)" OFF)
+    list(APPEND CMAKE_IGNORE_PREFIX_PATH /opt/homebrew /usr/local)
+    set(CMAKE_DISABLE_FIND_PACKAGE_PkgConfig ON)
 endif ()
 add_subdirectory(extern/aurora EXCLUDE_FROM_ALL)
 if (APPLE)

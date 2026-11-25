@@ -35,6 +35,11 @@ cp port/launcher/res/fonts/licenses/* port/libm/COPYRIGHT "$app/Contents/Resourc
 for lib in "$build"/*.dylib; do
     [ -e "$lib" ] && cp "$lib" "$app/Contents/MacOS/"
 done
+# Only system libraries may be linked: a Homebrew dylib would be missing on players' Macs.
+if otool -L "$app/Contents/MacOS/Moonsprout" | tail -n +2 | grep -vE '^\s+(/usr/lib/|/System/Library/|@rpath/|@executable_path/)'; then
+    echo "error: the binary links libraries outside the system (above)" >&2
+    exit 1
+fi
 codesign --force --deep --sign - "$app"
 
 cp tools/release/README-release.txt "$work/dmg/README.txt"
