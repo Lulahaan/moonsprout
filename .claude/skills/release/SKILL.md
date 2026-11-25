@@ -73,7 +73,11 @@ gh run list --workflow release.yml --limit 1
 gh run watch <run id> --exit-status
 ```
 
-The run takes about an hour, mostly the Windows and macOS builds. If a job fails, read its log
+The run takes about an hour, mostly the Windows and macOS builds. Both macOS builds run on the
+Intel runner (`macos-15-intel`); arm64 is cross-compiled there, because GitHub's arm64 macOS pool
+often never picks up jobs. A macOS job that sits in "queued" for over 20 minutes, or ends with
+"The job was not acquired by Runner", is that capacity problem, not a build error: retry it with
+`gh run rerun <id> --failed`. If a job fails, read its log
 (`gh run view <id> --log-failed`), fix the cause on `main` through the normal commit and CI process,
 then cut the **next** prerelease number. A failure that a retry fixes (a runner or network hiccup)
 can be retried with `gh run rerun <id> --failed`.
@@ -121,8 +125,9 @@ Then:
 ## 6. Report
 
 Give the user the release URL, whether it's a prerelease, the 7 files with their sizes, and what you
-checked. Mention anything you couldn't check (such as running the Windows or macOS builds, which
-needs those systems).
+checked. Mention anything you couldn't check. Linux can be run here; the Windows portable zip can be
+smoke-tested under Wine (the `org.winehq.Wine` flatpak, headless under `xvfb-run`, with a throwaway
+`WINEPREFIX`); the macOS builds can't be run here at all.
 
 ## Files
 
