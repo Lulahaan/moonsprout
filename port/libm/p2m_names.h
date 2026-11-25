@@ -5,6 +5,9 @@
 #ifndef P2M_NAMES_H
 #define P2M_NAMES_H
 
+#ifndef _USE_MATH_DEFINES
+#define _USE_MATH_DEFINES /* M_PI_2 and friends from the Windows CRT's math.h */
+#endif
 #include <stdint.h>
 #include <float.h>
 #include <math.h>

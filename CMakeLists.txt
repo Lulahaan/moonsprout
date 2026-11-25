@@ -121,6 +121,9 @@ add_library(p2libm STATIC ${P2LIBM_SOURCES} port/libm/p2m_sqrt.c)
 set_target_properties(p2libm PROPERTIES LINKER_LANGUAGE C)
 target_include_directories(p2libm PRIVATE ${CMAKE_SOURCE_DIR}/port/libm/internal ${CMAKE_SOURCE_DIR}/port/libm/src
         PUBLIC ${CMAKE_SOURCE_DIR}/port/libm)
+if (NOT CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    target_include_directories(p2libm PRIVATE ${CMAKE_SOURCE_DIR}/port/libm/compat) # <features.h>
+endif ()
 # -fno-math-errno: sqrt/sqrtf are then the bare instruction (musl never sets errno anyway).
 mppm_target_gnu_options(p2libm PRIVATE -include ${CMAKE_SOURCE_DIR}/port/libm/p2m_names.h
         -ffp-contract=off -fno-builtin -fno-fast-math -fno-math-errno -w)
