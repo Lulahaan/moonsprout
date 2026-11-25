@@ -12,14 +12,17 @@ New-Item -ItemType Directory -Force $OutDir | Out-Null
 $OutDir = (Resolve-Path $OutDir).Path
 $work = Join-Path ([System.IO.Path]::GetTempPath()) ("moonsprout-" + [guid]::NewGuid())
 $dir = Join-Path $work 'Moonsprout'
-New-Item -ItemType Directory -Force $dir, (Join-Path $dir 'licenses') | Out-Null
+New-Item -ItemType Directory -Force $dir | Out-Null
 
 # The program, the DLLs the build put next to it (Dawn's shader compiler), res/ and the notices.
 Copy-Item (Join-Path $BuildDir 'mppm.exe') (Join-Path $dir 'Moonsprout.exe')
 Get-ChildItem $BuildDir -Filter *.dll | Copy-Item -Destination $dir
 Copy-Item -Recurse (Join-Path $BuildDir 'res') (Join-Path $dir 'res')
 Copy-Item LICENSE.MD (Join-Path $dir 'LICENSE.txt')
-Copy-Item port/launcher/res/fonts/licenses/*, port/libm/COPYRIGHT (Join-Path $dir 'licenses')
+$licenses = Join-Path $work 'licenses'
+& bash tools/release/collect-licenses.sh $BuildDir ($licenses -replace '\\', '/')
+if ($LASTEXITCODE -ne 0) { throw "collect-licenses.sh failed ($LASTEXITCODE)" }
+Copy-Item -Recurse $licenses (Join-Path $dir 'licenses')
 Copy-Item tools/release/README-release.txt (Join-Path $dir 'README.txt')
 Get-ChildItem $dir | Format-Table Name, Length
 

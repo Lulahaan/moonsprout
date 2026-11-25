@@ -10,9 +10,8 @@ work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT
 
 notices() { # $1: destination folder
-    mkdir -p "$1/licenses"
     cp LICENSE.MD "$1/LICENSE.txt"
-    cp port/launcher/res/fonts/licenses/* port/libm/COPYRIGHT "$1/licenses/"
+    tools/release/collect-licenses.sh "$build" "$1/licenses" >/dev/null
     cp tools/release/README-release.txt "$1/README.txt"
 }
 
@@ -30,6 +29,7 @@ app="$work/AppDir"
 mkdir -p "$app/usr/bin" "$app/usr/share/applications" "$app/usr/share/icons/hicolor/256x256/apps"
 cp "$dir/moonsprout" "$app/usr/bin/moonsprout"
 cp -r "$build/res" "$app/usr/bin/res"
+mkdir -p "$app/usr/share/doc/moonsprout"
 notices "$app/usr/share/doc/moonsprout"
 cp packaging/linux/moonsprout.desktop "$app/usr/share/applications/"
 cp port/launcher/res/img/icon-256.png "$app/usr/share/icons/hicolor/256x256/apps/moonsprout.png"

@@ -27,9 +27,8 @@ for s in 16 32 128 256 512; do
 done
 iconutil -c icns "$iconset" -o "$app/Contents/Resources/Moonsprout.icns"
 
-mkdir -p "$app/Contents/Resources/licenses"
 cp LICENSE.MD "$app/Contents/Resources/LICENSE.txt"
-cp port/launcher/res/fonts/licenses/* port/libm/COPYRIGHT "$app/Contents/Resources/licenses/"
+tools/release/collect-licenses.sh "$build" "$app/Contents/Resources/licenses"
 
 # Any dylibs the build left next to the binary (none expected; Aurora links statically).
 for lib in "$build"/*.dylib; do
@@ -43,6 +42,7 @@ fi
 codesign --force --deep --sign - "$app"
 
 cp tools/release/README-release.txt "$work/dmg/README.txt"
+cp "$app/Contents/Resources/licenses/THIRD-PARTY-NOTICES.txt" "$work/dmg/"
 ln -s /Applications "$work/dmg/Applications"
 hdiutil create -volname "Moonsprout" -srcfolder "$work/dmg" -ov -format UDZO "$out/$name.dmg"
 ls -l "$out"

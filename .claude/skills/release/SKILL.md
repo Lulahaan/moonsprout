@@ -52,7 +52,7 @@ tag has a body, it goes in after the download links, so put a short summary ther
 (what to test, for a prerelease). Write it for players, not developers, and keep it short.
 
 ```bash
-git tag -a v0.2.0-rc.1 -m "Moonsprout 0.2.0-rc.1" -m "$(cat <<'EOF'
+git tag -a --cleanup=verbatim v0.2.0-rc.1 -m "Moonsprout 0.2.0-rc.1" -m "$(cat <<'EOF'
 ## What's new
 - Windows builds: an installer and a portable zip.
 
@@ -63,7 +63,9 @@ EOF
 git push origin v0.2.0-rc.1
 ```
 
-Create every tag on the tip of `origin/main` unless the user names another commit. Never move or
+`--cleanup=verbatim` matters: without it git drops every line that starts with `#`, so the
+`##` headings would vanish from the notes. Create every tag on the tip of `origin/main` unless the
+user names another commit. Never move or
 delete a tag that has been pushed. If a release is broken, make a new version instead.
 
 ## 4. Watch the build
