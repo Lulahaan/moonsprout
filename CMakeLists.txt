@@ -59,6 +59,11 @@ foreach (patch ${AURORA_PATCHES})
         message(STATUS "Applied ${patch}")
     endif ()
 endforeach ()
+if (APPLE)
+    # Homebrew's zstd (a dependency of its llvm) has a CMake package whose target lacks the include
+    # path; let Aurora build its own copy instead.
+    set(CMAKE_DISABLE_FIND_PACKAGE_zstd ON)
+endif ()
 add_subdirectory(extern/aurora EXCLUDE_FROM_ALL)
 if (APPLE)
     # aurora/lib/system_info.cpp relies on TargetConditionals.h being included transitively (newer SDKs only).
