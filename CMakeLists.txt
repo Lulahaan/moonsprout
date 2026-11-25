@@ -19,6 +19,10 @@ set(CMAKE_C_STANDARD 11)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_COLOR_DIAGNOSTICS ON)
+include(cmake/mppm_gnu_options.cmake) # GNU-style options, translated for clang-cl
+if (MSVC AND NOT CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
+    message(FATAL_ERROR "Build with clang-cl on Windows (-DCMAKE_C_COMPILER=clang-cl -DCMAKE_CXX_COMPILER=clang-cl), not cl.exe")
+endif ()
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 option(MPPM_WARNINGS "Show compiler warnings for game code" OFF)
@@ -118,18 +122,22 @@ set_target_properties(p2libm PROPERTIES LINKER_LANGUAGE C)
 target_include_directories(p2libm PRIVATE ${CMAKE_SOURCE_DIR}/port/libm/internal ${CMAKE_SOURCE_DIR}/port/libm/src
         PUBLIC ${CMAKE_SOURCE_DIR}/port/libm)
 # -fno-math-errno: sqrt/sqrtf are then the bare instruction (musl never sets errno anyway).
-target_compile_options(p2libm PRIVATE -include ${CMAKE_SOURCE_DIR}/port/libm/p2m_names.h
+mppm_target_gnu_options(p2libm PRIVATE -include ${CMAKE_SOURCE_DIR}/port/libm/p2m_names.h
         -ffp-contract=off -fno-builtin -fno-fast-math -fno-math-errno -w)
 
 # `ninja -C build-pc p2libm_selftest`, then `./build-pc/p2libm_selftest port/libm/selftest_expected.txt`.
 add_executable(p2libm_selftest EXCLUDE_FROM_ALL port/libm/selftest.c)
-target_compile_options(p2libm_selftest PRIVATE -ffp-contract=off -fno-builtin -fno-fast-math)
-target_link_libraries(p2libm_selftest PRIVATE p2libm m)
+mppm_target_gnu_options(p2libm_selftest PRIVATE -ffp-contract=off -fno-builtin -fno-fast-math)
+target_link_libraries(p2libm_selftest PRIVATE p2libm $<$<NOT:$<PLATFORM_ID:Windows>>:m>)
 
 # Zero on alloc (JKRHeap::alloc, port/sdk/heap_zero.cpp) and -ftrivial-auto-var-init=zero.
 option(MPPM_ZERO_INIT "Game heap allocations and uninitialised locals read as zero" ON)
 include(CheckCXXCompilerFlag)
-check_cxx_compiler_flag(-ftrivial-auto-var-init=zero P2_HAVE_AUTO_VAR_INIT_ZERO)
+if (CMAKE_CXX_COMPILER_FRONTEND_VARIANT STREQUAL "MSVC")
+    check_cxx_compiler_flag(/clang:-ftrivial-auto-var-init=zero P2_HAVE_AUTO_VAR_INIT_ZERO)
+else ()
+    check_cxx_compiler_flag(-ftrivial-auto-var-init=zero P2_HAVE_AUTO_VAR_INIT_ZERO)
+endif ()
 if (MPPM_ZERO_INIT)
     set_source_files_properties(port/sdk/heap_zero.cpp PROPERTIES COMPILE_DEFINITIONS MPPM_ZERO_INIT=1)
 else ()
@@ -137,7 +145,8 @@ else ()
 endif ()
 
 set(P2_OPTIONS)
-if (CMAKE_CXX_COMPILER_FRONTEND_VARIANT STREQUAL "GNU")
+# GNU-style list; clang-cl (frontend MSVC) gets it translated by mppm_target_gnu_options.
+if (CMAKE_CXX_COMPILER_FRONTEND_VARIANT STREQUAL "GNU" OR CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
     list(APPEND P2_OPTIONS
             -fsigned-char            # MWCC char is signed
             -fno-strict-aliasing     # decomp code type-puns freely
@@ -195,7 +204,7 @@ list(APPEND P2_OPTIONS -include ${CMAKE_SOURCE_DIR}/include/types.h)
 
 add_library(p2game STATIC ${P2_GAME_SOURCES})
 target_compile_definitions(p2game PRIVATE ${P2_DEFINES})
-target_compile_options(p2game PRIVATE ${P2_OPTIONS})
+mppm_target_gnu_options(p2game PRIVATE ${P2_OPTIONS})
 target_include_directories(p2game PRIVATE ${P2_INCLUDES})
 target_link_libraries(p2game PRIVATE aurora::core)
 
@@ -211,6 +220,22 @@ if (APPLE)
     set(P "_")
 else ()
     set(P "")
+endif ()
+# The C++ operator names in the list are Itanium-mangled; the MSVC ABI (Windows) has its own.
+if (CMAKE_CXX_SIMULATE_ID STREQUAL "MSVC" OR MSVC)
+    set(P2_NEW "??2@YAPEAX_K@Z")
+    set(P2_NEW_ARRAY "??_U@YAPEAX_K@Z")
+    set(P2_DELETE "??3@YAXPEAX@Z")
+    set(P2_DELETE_ARRAY "??_V@YAXPEAX@Z")
+    set(P2_DELETE_SIZED "??3@YAXPEAX_K@Z")
+    set(P2_DELETE_ARRAY_SIZED "??_V@YAXPEAX_K@Z")
+else ()
+    set(P2_NEW "${P}_Znwm")
+    set(P2_NEW_ARRAY "${P}_Znam")
+    set(P2_DELETE "${P}_ZdlPv")
+    set(P2_DELETE_ARRAY "${P}_ZdaPv")
+    set(P2_DELETE_SIZED "${P}_ZdlPvm")
+    set(P2_DELETE_ARRAY_SIZED "${P}_ZdaPvm")
 endif ()
 configure_file(cmake/p2_new_syms.txt.in ${CMAKE_BINARY_DIR}/p2_new_syms.all.txt @ONLY)
 file(STRINGS ${CMAKE_BINARY_DIR}/p2_new_syms.all.txt _p2_syms)
@@ -234,7 +259,7 @@ add_custom_command(TARGET p2game POST_BUILD
 # the camera's cull planes): its math goes to p2libm too. A forced header renames the calls after
 # <math.h> is read, so extern/ needs no edit.
 if (MPPM_VENDORED_LIBM)
-    target_compile_options(aurora_mtx PRIVATE -include ${CMAKE_SOURCE_DIR}/port/libm/p2m_route_mtx.h -ffp-contract=off)
+    mppm_target_gnu_options(aurora_mtx PRIVATE -include ${CMAKE_SOURCE_DIR}/port/libm/p2m_route_mtx.h -ffp-contract=off)
     target_include_directories(aurora_mtx PRIVATE ${CMAKE_SOURCE_DIR}/port/libm)
     target_link_libraries(aurora_mtx PRIVATE p2libm)
 endif ()
@@ -242,6 +267,9 @@ endif ()
 # Build check: no system libm function may be left in the game library or in aurora_mtx, and the
 # game library may not define one (an out-of-line copy of trig.h's sinf would become a second
 # p2m_sinf). Runs after the objcopy step; cmake/p2_libm_check.cmake.
+if (NOT CMAKE_NM)
+    find_program(CMAKE_NM NAMES llvm-nm nm REQUIRED) # clang-cl builds do not set it
+endif ()
 set(P2LIBM_CHECK_STAMP ${CMAKE_BINARY_DIR}/p2libm_check.stamp)
 add_custom_command(OUTPUT ${P2LIBM_CHECK_STAMP}
         COMMAND ${CMAKE_COMMAND} -DNM=${CMAKE_NM} -DPREFIX=${P}

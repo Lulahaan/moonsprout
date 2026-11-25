@@ -1,9 +1,9 @@
-@P@_Znwm @P@p2_operator_new
-@P@_Znam @P@p2_operator_new_array
-@P@_ZdlPv @P@p2_operator_delete
-@P@_ZdaPv @P@p2_operator_delete_array
-@P@_ZdlPvm @P@p2_operator_delete_sized
-@P@_ZdaPvm @P@p2_operator_delete_array_sized
+@P2_NEW@ @P@p2_operator_new
+@P2_NEW_ARRAY@ @P@p2_operator_new_array
+@P2_DELETE@ @P@p2_operator_delete
+@P2_DELETE_ARRAY@ @P@p2_operator_delete_array
+@P2_DELETE_SIZED@ @P@p2_operator_delete_sized
+@P2_DELETE_ARRAY_SIZED@ @P@p2_operator_delete_array_sized
 @P@sinf @P@p2m_sinf
 @P@cosf @P@p2m_cosf
 @P@tanf @P@p2m_tanf
