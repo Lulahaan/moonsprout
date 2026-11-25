@@ -403,6 +403,10 @@ void threadMain(HostThread* self)
 {
 #if defined(_WIN32)
 	self->tid = (int)GetCurrentThreadId();
+#elif defined(__APPLE__)
+	uint64_t tid = 0;
+	pthread_threadid_np(nullptr, &tid);
+	self->tid = (int)tid;
 #else
 	self->tid = (int)gettid();
 #endif
