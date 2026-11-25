@@ -332,6 +332,9 @@ if (WIN32)
     configure_file(packaging/windows/mppm.rc.in ${CMAKE_BINARY_DIR}/generated/mppm.rc @ONLY)
     target_sources(mppm PRIVATE ${CMAKE_BINARY_DIR}/generated/mppm.rc)
     set_target_properties(mppm PROPERTIES WIN32_EXECUTABLE ON)
+    # Dawn's DLLs (and the DXC shader compiler it loads at run time) next to mppm.exe.
+    include(extern/aurora/cmake/AuroraCopyRuntimeDLLs.cmake)
+    aurora_copy_runtime_dlls(mppm)
 endif ()
 
 add_library(mppm_launcher STATIC ${LAUNCHER_SOURCES})
