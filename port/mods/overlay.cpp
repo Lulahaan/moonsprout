@@ -7,6 +7,9 @@
 #include <cstdlib>
 #include <cstring>
 #include <new>
+#if defined(_WIN32)
+#include <malloc.h>
+#endif
 
 namespace mppm::mods::overlay {
 
@@ -66,10 +69,20 @@ bool sInstalled = false;
 
 } // namespace
 
+// std::aligned_alloc does not exist in the MSVC runtime.
+static void* aligned_alloc_32(size_t bytes)
+{
+#if defined(_WIN32)
+	return _aligned_malloc(bytes, 32);
+#else
+	return std::aligned_alloc(32, bytes);
+#endif
+}
+
 uint8_t* alloc_blob(uint64_t size, Blob* out)
 {
 	const uint64_t bytes = (size + 32 + 31) & ~(uint64_t)31;
-	uint8_t* p = static_cast<uint8_t*>(std::aligned_alloc(32, (size_t)bytes));
+	uint8_t* p = static_cast<uint8_t*>(aligned_alloc_32((size_t)bytes)); // never freed
 	if (p == nullptr) return nullptr;
 	std::memset(p + size, 0, (size_t)(bytes - size));
 	out->data = p;

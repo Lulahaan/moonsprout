@@ -1180,7 +1180,11 @@ static std::string online_record_path()
 	char when[32];
 	const std::time_t t = std::time(nullptr);
 	std::tm tmv{};
+#if defined(_WIN32)
+	localtime_s(&tmv, &t);
+#else
 	localtime_r(&t, &tmv);
+#endif
 	std::strftime(when, sizeof(when), "%Y%m%d-%H%M%S", &tmv);
 	return dir + mppm::session::code() + "-" + when + ".mpnl";
 }

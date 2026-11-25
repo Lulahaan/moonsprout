@@ -20,6 +20,10 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_COLOR_DIAGNOSTICS ON)
 include(cmake/mppm_gnu_options.cmake) # GNU-style options, translated for clang-cl
+if (WIN32)
+    # No min/max macros from <windows.h>; no "use the _s functions" warnings from the CRT.
+    add_compile_definitions(NOMINMAX _CRT_SECURE_NO_WARNINGS)
+endif ()
 if (MSVC AND NOT CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
     message(FATAL_ERROR "Build with clang-cl on Windows (-DCMAKE_C_COMPILER=clang-cl -DCMAKE_CXX_COMPILER=clang-cl), not cl.exe")
 endif ()

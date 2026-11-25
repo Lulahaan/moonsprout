@@ -5,6 +5,9 @@
 #include "p2_endian.h"
 
 #include <cstdlib>
+#if defined(_WIN32)
+#include <malloc.h>
+#endif
 
 static void swapResFont(ResFONT* font)
 {
@@ -88,7 +91,12 @@ static const ResFONT* hostSystemFont()
 	static ResFONT* sCopy = nullptr;
 	if (sCopy == nullptr) {
 		const u32 size = (u32)JUTResFONT_Ascfont_fix12[2]; // mFileSize as a native int
-		u32* words     = static_cast<u32*>(std::aligned_alloc(32, (size + 31) & ~31u));
+		u32* words     = static_cast<u32*>(
+#if defined(_WIN32) // no std::aligned_alloc in the MSVC runtime; never freed either way
+		    _aligned_malloc((size + 31) & ~31u, 32));
+#else
+		    std::aligned_alloc(32, (size + 31) & ~31u));
+#endif
 		for (u32 i = 0; i < size / 4; i++) {
 			words[i] = __builtin_bswap32((u32)JUTResFONT_Ascfont_fix12[i]);
 		}
