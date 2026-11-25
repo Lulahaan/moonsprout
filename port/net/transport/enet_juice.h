@@ -60,10 +60,10 @@ typedef struct mppm_shim_addr_stats {
     uint64_t last_recv_ns;  // steady ns of the last datagram from this address (0 = never)
 } mppm_shim_addr_stats;
 
-// Attaches an ENet socket (host->socket after enet_host_create). wake_fd: written (8 bytes, eventfd
-// style, or one byte to a pipe when wake_is_pipe) whenever an agent queues a datagram. NULL when the
-// table (MPPM_SHIM_MAX_SOCKETS) is full.
-mppm_shim* mppm_shim_attach(ENetSocket socket, int wake_fd, int wake_is_pipe);
+// Attaches an ENet socket (host->socket after enet_host_create). wake_fn(wake_ctx) is called (on
+// libjuice's thread) whenever an agent queues a datagram; it may be NULL. NULL when the table
+// (MPPM_SHIM_MAX_SOCKETS) is full.
+mppm_shim* mppm_shim_attach(ENetSocket socket, void (*wake_fn)(void*), void* wake_ctx);
 // Detaches and frees (held datagrams are dropped). Agents must already be unregistered.
 void mppm_shim_detach(mppm_shim* sh);
 void mppm_shim_set_impair(mppm_shim* sh, const mppm_impair* im); // NULL or all zero = none

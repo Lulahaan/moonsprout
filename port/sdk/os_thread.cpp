@@ -22,7 +22,14 @@
 #include <chrono>
 #include <condition_variable>
 #include <cstdio>
+#if defined(_WIN32)
+// Declared here instead of <windows.h>, whose macros clash with SDK names.
+extern "C" __declspec(dllimport) unsigned long __stdcall GetCurrentThreadId(void);
+extern "C" __declspec(dllimport) __declspec(noreturn) void __stdcall ExitThread(unsigned long code);
+#else
+#include <pthread.h>
 #include <unistd.h>
+#endif
 #include <cstdlib>
 #include <cstring>
 #include <deque>
@@ -394,7 +401,11 @@ void ensureInit()
 
 void threadMain(HostThread* self)
 {
+#if defined(_WIN32)
+	self->tid = (int)GetCurrentThreadId();
+#else
 	self->tid = (int)gettid();
+#endif
 	t_self = self;
 	{
 		std::unique_lock lk(g_lock);
@@ -673,7 +684,11 @@ void OSExitThread(void* val)
 	lk.unlock();
 	// The host thread ends here; its OSThread storage belongs to the game.
 	t_self = nullptr;
+#if defined(_WIN32)
+	ExitThread(0);
+#else
 	pthread_exit(nullptr);
+#endif
 }
 
 void OSCancelThread(OSThread* thread)

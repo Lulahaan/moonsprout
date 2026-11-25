@@ -1,6 +1,18 @@
 // M5.3b transport (docs/online/M5_3B_TRANSPORT.md): mppm::net::Transport over ENet 1.3.18, the socket
 // shim (enet_juice.c), libjuice 1.7.4 agents and the builtin relay's client side. The interface and
 // every member's semantics are in port/net/transport.hpp. Host C++ only: no game headers.
+#if defined(_WIN32)
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#include <winsock2.h>
+#include <ws2tcpip.h>
+#include <iphlpapi.h>
+#endif
+
 #include "../transport.hpp"
 
 #include "enet_juice.h"
@@ -8,6 +20,7 @@
 
 #include <juice/juice.h>
 
+#if !defined(_WIN32)
 #include <arpa/inet.h>
 #include <fcntl.h>
 #include <ifaddrs.h>
@@ -18,6 +31,7 @@
 #include <unistd.h>
 #if defined(__linux__)
 #include <sys/eventfd.h>
+#endif
 #endif
 
 #include <algorithm>
@@ -137,8 +151,13 @@ std::string strip_non_relay(const std::string& sdp) {
 
 // A free UDP port on `bindIp` (host network order), for the host's mux agents. 0 on failure.
 uint16_t pick_udp_port(uint32_t bindIp) {
+#if defined(_WIN32)
+    SOCKET s = ::socket(AF_INET, SOCK_DGRAM, 0);
+    if (s == INVALID_SOCKET) return 0;
+#else
     int s = ::socket(AF_INET, SOCK_DGRAM, 0);
     if (s < 0) return 0;
+#endif
     sockaddr_in sin{};
     sin.sin_family = AF_INET;
     sin.sin_addr.s_addr = bindIp;
@@ -148,12 +167,36 @@ uint16_t pick_udp_port(uint32_t bindIp) {
         socklen_t len = sizeof sin;
         if (::getsockname(s, reinterpret_cast<sockaddr*>(&sin), &len) == 0) port = ntohs(sin.sin_port);
     }
+#if defined(_WIN32)
+    ::closesocket(s);
+#else
     ::close(s);
+#endif
     return port;
 }
 
 std::vector<uint32_t> interface_ips() { // up, non-loopback IPv4 interfaces, host network order
     std::vector<uint32_t> ips;
+#if defined(_WIN32)
+    ULONG size = 16 * 1024;
+    std::vector<unsigned char> buf;
+    ULONG rc = ERROR_BUFFER_OVERFLOW;
+    for (int tries = 0; tries < 3 && rc == ERROR_BUFFER_OVERFLOW; tries++) {
+        buf.resize(size);
+        rc = GetAdaptersAddresses(AF_INET, GAA_FLAG_SKIP_ANYCAST | GAA_FLAG_SKIP_MULTICAST | GAA_FLAG_SKIP_DNS_SERVER,
+                                  nullptr, reinterpret_cast<IP_ADAPTER_ADDRESSES*>(buf.data()), &size);
+    }
+    if (rc != NO_ERROR) return ips;
+    for (auto* a = reinterpret_cast<IP_ADAPTER_ADDRESSES*>(buf.data()); a; a = a->Next) {
+        if (a->OperStatus != IfOperStatusUp || a->IfType == IF_TYPE_SOFTWARE_LOOPBACK) continue;
+        for (auto* u = a->FirstUnicastAddress; u; u = u->Next) {
+            if (!u->Address.lpSockaddr || u->Address.lpSockaddr->sa_family != AF_INET) continue;
+            uint32_t ip = reinterpret_cast<sockaddr_in*>(u->Address.lpSockaddr)->sin_addr.s_addr;
+            if (std::find(ips.begin(), ips.end(), ip) == ips.end()) ips.push_back(ip);
+        }
+    }
+    return ips;
+#else
     ifaddrs* list = nullptr;
     if (getifaddrs(&list) != 0) return ips;
     for (ifaddrs* i = list; i; i = i->ifa_next) {
@@ -164,6 +207,7 @@ std::vector<uint32_t> interface_ips() { // up, non-loopback IPv4 interfaces, hos
     }
     freeifaddrs(list);
     return ips;
+#endif
 }
 
 bool is_loopback(uint32_t hostNetOrder) { return (reinterpret_cast<const uint8_t*>(&hostNetOrder)[0]) == 127; }
@@ -251,8 +295,14 @@ private:
     TransportConfig cfg_;
     ENetHost* host_ = nullptr;
     mppm_shim* shim_ = nullptr;
+#if defined(_WIN32)
+    // A UDP socket on 127.0.0.1 connected to itself: wake() sends it one byte, and service() waits on
+    // it next to the ENet socket.
+    SOCKET wakeSock_ = INVALID_SOCKET;
+#else
     int wakeRead_ = -1, wakeWrite_ = -1;
     bool wakeIsPipe_ = false;
+#endif
     ENetAddress bound_{};
     std::vector<uint32_t> localIps_;
     std::map<PeerId, PeerRec> peers_;
@@ -334,7 +384,21 @@ bool TransportImpl::init(const TransportConfig& cfg, std::string& err) {
     if (enet_socket_get_address(host_->socket, &bound_) != 0) bound_ = bind;
     if (bound_.host == 0) bound_.host = bind.host;
 
-#if defined(__linux__)
+#if defined(_WIN32)
+    wakeSock_ = ::socket(AF_INET, SOCK_DGRAM, 0);
+    sockaddr_in self{};
+    self.sin_family = AF_INET;
+    self.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+    int selfLen = sizeof self;
+    u_long nonBlocking = 1;
+    if (wakeSock_ == INVALID_SOCKET || ::bind(wakeSock_, reinterpret_cast<sockaddr*>(&self), sizeof self) != 0 ||
+        ::getsockname(wakeSock_, reinterpret_cast<sockaddr*>(&self), &selfLen) != 0 ||
+        ::connect(wakeSock_, reinterpret_cast<sockaddr*>(&self), sizeof self) != 0 ||
+        ::ioctlsocket(wakeSock_, FIONBIO, &nonBlocking) != 0) {
+        err = "cannot open the wake-up socket (WSA error " + std::to_string(WSAGetLastError()) + ")";
+        return false;
+    }
+#elif defined(__linux__)
     wakeRead_ = wakeWrite_ = eventfd(0, EFD_NONBLOCK | EFD_CLOEXEC);
     if (wakeRead_ < 0) {
         err = std::string("eventfd: ") + std::strerror(errno);
@@ -354,7 +418,7 @@ bool TransportImpl::init(const TransportConfig& cfg, std::string& err) {
     wakeWrite_ = fds[1];
     wakeIsPipe_ = true;
 #endif
-    shim_ = mppm_shim_attach(host_->socket, wakeWrite_, wakeIsPipe_ ? 1 : 0);
+    shim_ = mppm_shim_attach(host_->socket, [](void* self) { static_cast<TransportImpl*>(self)->wake(); }, this);
     if (!shim_) {
         err = "too many transports in this process (8)";
         return false;
@@ -395,8 +459,12 @@ TransportImpl::~TransportImpl() {
     for (auto& [id, r] : peers_) destroy_agent(r);
     if (shim_) mppm_shim_detach(shim_); // before the socket closes: its fd number may be reused at once
     if (host_) enet_host_destroy(host_);
+#if defined(_WIN32)
+    if (wakeSock_ != INVALID_SOCKET) ::closesocket(wakeSock_);
+#else
     if (wakeRead_ >= 0) ::close(wakeRead_);
     if (wakeWrite_ >= 0 && wakeWrite_ != wakeRead_) ::close(wakeWrite_);
+#endif
 }
 
 std::vector<std::string> TransportImpl::local_addresses() const {
@@ -877,16 +945,26 @@ void TransportImpl::service(uint32_t timeoutUs, std::vector<Event>& out) {
         uint64_t until = now + static_cast<uint64_t>(timeoutUs) * 1000ull;
         until = std::min({until, mppm_shim_next_release_ns(shim_), next_timer_ns()});
         if (until > now) {
-            pollfd fds[2] = {{host_->socket, POLLIN, 0}, {wakeRead_, POLLIN, 0}};
             uint64_t wait = until - now;
-#if defined(__linux__)
+#if defined(_WIN32)
+            WSAPOLLFD fds[2] = {{host_->socket, POLLRDNORM, 0}, {wakeSock_, POLLRDNORM, 0}};
+            WSAPoll(fds, 2, static_cast<INT>((wait + 999999) / 1000000));
+#elif defined(__linux__)
+            pollfd fds[2] = {{host_->socket, POLLIN, 0}, {wakeRead_, POLLIN, 0}};
             timespec ts{static_cast<time_t>(wait / 1000000000ull), static_cast<long>(wait % 1000000000ull)};
             ppoll(fds, 2, &ts, nullptr);
 #else
+            pollfd fds[2] = {{host_->socket, POLLIN, 0}, {wakeRead_, POLLIN, 0}};
             poll(fds, 2, static_cast<int>((wait + 999999) / 1000000));
 #endif
         }
     }
+#if defined(_WIN32)
+    {
+        char buf[64];
+        while (::recv(wakeSock_, buf, sizeof buf, 0) > 0) {}
+    }
+#else
     if (wakeIsPipe_) {
         uint8_t buf[64];
         while (::read(wakeRead_, buf, sizeof buf) > 0) {}
@@ -895,6 +973,7 @@ void TransportImpl::service(uint32_t timeoutUs, std::vector<Event>& out) {
         ssize_t r = ::read(wakeRead_, &v, sizeof v);
         (void)r;
     }
+#endif
     process_callbacks();
     now = Transport::now_ns();
     mppm_shim_release_due(shim_, now);
@@ -909,6 +988,10 @@ void TransportImpl::service(uint32_t timeoutUs, std::vector<Event>& out) {
 }
 
 void TransportImpl::wake() {
+#if defined(_WIN32)
+    const char b = 1;
+    ::send(wakeSock_, &b, 1, 0);
+#else
     if (wakeIsPipe_) {
         uint8_t b = 1;
         ssize_t r = ::write(wakeWrite_, &b, 1);
@@ -918,6 +1001,7 @@ void TransportImpl::wake() {
         ssize_t r = ::write(wakeWrite_, &one, sizeof one);
         (void)r;
     }
+#endif
 }
 
 bool TransportImpl::stats(PeerId peer, PeerStats& out) const {

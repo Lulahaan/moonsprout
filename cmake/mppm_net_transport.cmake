@@ -32,6 +32,9 @@ if (NOT WIN32)
             HAS_INET_PTON=1 HAS_INET_NTOP=1 HAS_MSGHDR_FLAGS=1 HAS_SOCKLEN_T=1)
 endif ()
 target_compile_options(mppm_enet PRIVATE -w)
+if (WIN32)
+    target_link_libraries(mppm_enet PUBLIC ws2_32 winmm)
+endif ()
 # The platform file only: its socket functions become enet_sys_socket_*; the shim defines the
 # public enet_socket_* names (and delegates to these).
 set(_mppm_enet_renames)
@@ -66,6 +69,9 @@ target_compile_options(juice-static PRIVATE -w)
 target_include_directories(mppm PRIVATE ${MPPM_ENET_DIR}/include ${mppm_juice_SOURCE_DIR}/include)
 target_compile_definitions(mppm PRIVATE JUICE_STATIC)
 target_link_libraries(mppm PRIVATE mppm_enet LibJuice::LibJuiceStatic)
+if (WIN32)
+    target_link_libraries(mppm PRIVATE iphlpapi) # GetAdaptersAddresses (transport.cpp)
+endif ()
 
 # ---- Tests (not built by default): `ninja -C build-pc p2transport_test p2net_turn`, then
 # tests/net/transport/transport_test.sh. ----

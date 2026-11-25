@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=Moonsprout
+GenericName=Pikmin 2 native port
+Comment=Play your own Pikmin 2 disc as a native program
+Exec=moonsprout %f
+Icon=moonsprout
+Terminal=false
+Categories=Game;
+Keywords=pikmin;gamecube;

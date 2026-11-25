@@ -288,7 +288,7 @@ void selftest_shim_heap() {
     enet_socket_set_option(b, ENET_SOCKOPT_NONBLOCK, 1);
     ENetAddress to{};
     enet_socket_get_address(b, &to);
-    mppm_shim* sh = mppm_shim_attach(a, -1, 0);
+    mppm_shim* sh = mppm_shim_attach(a, nullptr, nullptr);
     check(sh != nullptr, "shim attach");
     if (!sh) return;
     mppm_impair im;

@@ -7,17 +7,46 @@
 #include <juice/juice.h>
 
 #include <errno.h>
-#include <pthread.h>
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
-#include <unistd.h>
+
+#if defined(_WIN32)
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#include <windows.h>
+// A slim lock with a static initializer, like pthread_mutex_t.
+typedef SRWLOCK mppm_mutex;
+#define MPPM_MUTEX_INIT SRWLOCK_INIT
+static void mppm_mutex_init(mppm_mutex* m) { InitializeSRWLock(m); }
+static void mppm_mutex_destroy(mppm_mutex* m) { (void)m; }
+static void mppm_mutex_lock(mppm_mutex* m) { AcquireSRWLockExclusive(m); }
+static void mppm_mutex_unlock(mppm_mutex* m) { ReleaseSRWLockExclusive(m); }
+
+uint64_t mppm_steady_ns(void) {
+    static LARGE_INTEGER freq;
+    LARGE_INTEGER now;
+    if (freq.QuadPart == 0) QueryPerformanceFrequency(&freq);
+    QueryPerformanceCounter(&now);
+    const uint64_t f = (uint64_t)freq.QuadPart, c = (uint64_t)now.QuadPart;
+    return (c / f) * 1000000000ull + (c % f) * 1000000000ull / f;
+}
+#else
+#include <pthread.h>
+typedef pthread_mutex_t mppm_mutex;
+#define MPPM_MUTEX_INIT PTHREAD_MUTEX_INITIALIZER
+static void mppm_mutex_init(mppm_mutex* m) { pthread_mutex_init(m, NULL); }
+static void mppm_mutex_destroy(mppm_mutex* m) { pthread_mutex_destroy(m); }
+static void mppm_mutex_lock(mppm_mutex* m) { pthread_mutex_lock(m); }
+static void mppm_mutex_unlock(mppm_mutex* m) { pthread_mutex_unlock(m); }
 
 uint64_t mppm_steady_ns(void) {
     struct timespec ts;
     clock_gettime(CLOCK_MONOTONIC, &ts);
     return (uint64_t)ts.tv_sec * 1000000000ull + (uint64_t)ts.tv_nsec;
 }
+#endif
 
 // ---------------------------------------------------------------------------------------------------
 // Synthetic addresses. ENetAddress::host is in network byte order: its first byte is the first octet.
@@ -111,14 +140,15 @@ typedef struct stats_slot {
 
 struct mppm_shim {
     ENetSocket socket;
-    int wake_fd, wake_is_pipe;
+    void (*wake_fn)(void*);
+    void* wake_ctx;
     mppm_impair impair;
     int impair_enabled;
     held_dgram* heap;
     size_t heap_n, heap_cap;
     uint64_t seq;
     struct juice_agent* agents[MPPM_SHIM_MAX_AGENTS];
-    pthread_mutex_t qlock; // agent queue (cb_recv runs on libjuice's thread)
+    mppm_mutex qlock; // agent queue (cb_recv runs on libjuice's thread)
     agent_dgram *qhead, *qtail;
     size_t qlen;
     struct { ENetAddress from; size_t size; uint8_t data[MPRL_MAX]; } mprl[MPRL_SLOTS];
@@ -129,34 +159,34 @@ struct mppm_shim {
     uint64_t send_errors;
 };
 
-static pthread_mutex_t g_table_lock = PTHREAD_MUTEX_INITIALIZER;
+static mppm_mutex g_table_lock = MPPM_MUTEX_INIT;
 static struct { ENetSocket socket; mppm_shim* sh; } g_table[MPPM_SHIM_MAX_SOCKETS];
 
 static mppm_shim* lookup(ENetSocket s) {
     mppm_shim* sh = NULL;
-    pthread_mutex_lock(&g_table_lock);
+    mppm_mutex_lock(&g_table_lock);
     for (int i = 0; i < MPPM_SHIM_MAX_SOCKETS; i++) {
         if (g_table[i].sh && g_table[i].socket == s) { sh = g_table[i].sh; break; }
     }
-    pthread_mutex_unlock(&g_table_lock);
+    mppm_mutex_unlock(&g_table_lock);
     return sh;
 }
 
-mppm_shim* mppm_shim_attach(ENetSocket socket, int wake_fd, int wake_is_pipe) {
+mppm_shim* mppm_shim_attach(ENetSocket socket, void (*wake_fn)(void*), void* wake_ctx) {
     mppm_shim* sh = (mppm_shim*)calloc(1, sizeof *sh);
     if (!sh) return NULL;
     sh->socket = socket;
-    sh->wake_fd = wake_fd;
-    sh->wake_is_pipe = wake_is_pipe;
-    pthread_mutex_init(&sh->qlock, NULL);
+    sh->wake_fn = wake_fn;
+    sh->wake_ctx = wake_ctx;
+    mppm_mutex_init(&sh->qlock);
     int ok = 0;
-    pthread_mutex_lock(&g_table_lock);
+    mppm_mutex_lock(&g_table_lock);
     for (int i = 0; i < MPPM_SHIM_MAX_SOCKETS; i++) {
         if (!g_table[i].sh) { g_table[i].socket = socket; g_table[i].sh = sh; ok = 1; break; }
     }
-    pthread_mutex_unlock(&g_table_lock);
+    mppm_mutex_unlock(&g_table_lock);
     if (!ok) {
-        pthread_mutex_destroy(&sh->qlock);
+        mppm_mutex_destroy(&sh->qlock);
         free(sh);
         return NULL;
     }
@@ -165,22 +195,22 @@ mppm_shim* mppm_shim_attach(ENetSocket socket, int wake_fd, int wake_is_pipe) {
 
 void mppm_shim_detach(mppm_shim* sh) {
     if (!sh) return;
-    pthread_mutex_lock(&g_table_lock);
+    mppm_mutex_lock(&g_table_lock);
     for (int i = 0; i < MPPM_SHIM_MAX_SOCKETS; i++) {
         if (g_table[i].sh == sh) { g_table[i].sh = NULL; g_table[i].socket = 0; }
     }
-    pthread_mutex_unlock(&g_table_lock);
+    mppm_mutex_unlock(&g_table_lock);
     for (size_t i = 0; i < sh->heap_n; i++) free(sh->heap[i].data);
     free(sh->heap);
-    pthread_mutex_lock(&sh->qlock);
+    mppm_mutex_lock(&sh->qlock);
     for (agent_dgram* d = sh->qhead; d;) {
         agent_dgram* n = d->next;
         free(d);
         d = n;
     }
     sh->qhead = sh->qtail = NULL;
-    pthread_mutex_unlock(&sh->qlock);
-    pthread_mutex_destroy(&sh->qlock);
+    mppm_mutex_unlock(&sh->qlock);
+    mppm_mutex_destroy(&sh->qlock);
     free(sh);
 }
 
@@ -230,23 +260,14 @@ uint64_t mppm_shim_send_errors(const mppm_shim* sh) { return sh->send_errors; }
 // ---- Agents.
 
 static void wake(mppm_shim* sh) {
-    if (sh->wake_fd < 0) return;
-    if (sh->wake_is_pipe) {
-        uint8_t b = 1;
-        ssize_t r = write(sh->wake_fd, &b, 1);
-        (void)r;
-    } else {
-        uint64_t one = 1;
-        ssize_t r = write(sh->wake_fd, &one, sizeof one);
-        (void)r;
-    }
+    if (sh->wake_fn) sh->wake_fn(sh->wake_ctx);
 }
 
 void mppm_shim_set_agent(mppm_shim* sh, int id, struct juice_agent* agent) {
     if (id <= 0 || id >= MPPM_SHIM_MAX_AGENTS) return;
     sh->agents[id] = agent;
     if (agent) return;
-    pthread_mutex_lock(&sh->qlock); // drop what the old agent queued
+    mppm_mutex_lock(&sh->qlock); // drop what the old agent queued
     agent_dgram* keep_head = NULL;
     agent_dgram* keep_tail = NULL;
     size_t n = 0;
@@ -265,7 +286,7 @@ void mppm_shim_set_agent(mppm_shim* sh, int id, struct juice_agent* agent) {
     sh->qhead = keep_head;
     sh->qtail = keep_tail;
     sh->qlen = n;
-    pthread_mutex_unlock(&sh->qlock);
+    mppm_mutex_unlock(&sh->qlock);
 }
 
 void mppm_shim_agent_recv(mppm_shim* sh, int id, const void* data, size_t size) {
@@ -277,35 +298,35 @@ void mppm_shim_agent_recv(mppm_shim* sh, int id, const void* data, size_t size) 
     d->ns = mppm_steady_ns();
     d->size = size;
     memcpy(d->data, data, size);
-    pthread_mutex_lock(&sh->qlock);
+    mppm_mutex_lock(&sh->qlock);
     if (sh->qlen >= AGENT_QUEUE_MAX) { // the net thread is not keeping up: drop, like a full socket buffer
-        pthread_mutex_unlock(&sh->qlock);
+        mppm_mutex_unlock(&sh->qlock);
         free(d);
         return;
     }
     if (sh->qtail) sh->qtail->next = d; else sh->qhead = d;
     sh->qtail = d;
     sh->qlen++;
-    pthread_mutex_unlock(&sh->qlock);
+    mppm_mutex_unlock(&sh->qlock);
     wake(sh);
 }
 
 int mppm_shim_agent_pending(mppm_shim* sh) {
-    pthread_mutex_lock(&sh->qlock);
+    mppm_mutex_lock(&sh->qlock);
     int r = sh->qhead != NULL;
-    pthread_mutex_unlock(&sh->qlock);
+    mppm_mutex_unlock(&sh->qlock);
     return r;
 }
 
 static agent_dgram* agent_pop(mppm_shim* sh) {
-    pthread_mutex_lock(&sh->qlock);
+    mppm_mutex_lock(&sh->qlock);
     agent_dgram* d = sh->qhead;
     if (d) {
         sh->qhead = d->next;
         if (!sh->qhead) sh->qtail = NULL;
         sh->qlen--;
     }
-    pthread_mutex_unlock(&sh->qlock);
+    mppm_mutex_unlock(&sh->qlock);
     return d;
 }
 
